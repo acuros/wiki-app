@@ -218,6 +218,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Node.js / React Native
+!/client/src/lib/
+!/client/src/lib/**
 node_modules/
 .expo/
 .expo-shared/
@@ -231,6 +233,8 @@ yarn-error.log*
 pnpm-debug.log*
 
 # React Native native builds
+/client/android/
+/client/ios/
 android/.gradle/
 android/local.properties
 android/app/debug/

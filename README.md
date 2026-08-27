@@ -17,4 +17,11 @@ wiki-app/
 - 클라이언트: React Native
 - 서버: Python
 
-세부 프레임워크와 개발 환경은 추후 결정합니다.
+### 클라이언트
+
+- Expo SDK 57 / React Native 0.86 / React 19.2
+- TypeScript와 Expo Router
+- TanStack Query와 표준 `fetch` 기반 API 계층
+- Node.js 24 LTS / npm
+
+클라이언트 개발 방법과 검증 명령은 [`client/README.md`](client/README.md)를 참고합니다.
