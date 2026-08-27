@@ -4,12 +4,12 @@
 
 ## 구성
 
-향후 최상단 디렉터리를 다음과 같이 구성합니다.
+최상단 디렉터리는 다음과 같이 구성합니다.
 
 ```text
 wiki-app/
 ├── client/  # React Native 앱
-└── server/  # Python 서버
+└── server/  # Python 3.14 / FastAPI 서버
 ```
 
 ## 기술 스택
@@ -25,3 +25,7 @@ wiki-app/
 - Node.js 24 LTS / npm
 
 클라이언트 개발 방법과 검증 명령은 [`client/README.md`](client/README.md)를 참고합니다.
+
+### 서버
+
+서버의 실행과 검증 방법은 [`server/README.md`](server/README.md)를 참고합니다.
