@@ -1,7 +1,7 @@
 [project]
 name = "llm-wiki-server"
 version = "0.1.0"
-description = "Read-only HTTP projection of local Codex conversations"
+description = "HTTP API for reading and continuing local Codex conversations"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [

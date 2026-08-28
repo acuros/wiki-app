@@ -8,7 +8,7 @@ from llm_wiki.domain.models import Conversation, Page, ThreadId, ThreadSummary
 @dataclass(frozen=True, slots=True)
 class ListThreadsQuery:
     cursor: str | None = None
-    limit: int = 50
+    limit: int = 20
     archived: bool = False
 
 

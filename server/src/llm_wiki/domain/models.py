@@ -107,6 +107,13 @@ class Conversation:
 
 
 @dataclass(frozen=True, slots=True)
+class TurnSubmission:
+    thread_id: ThreadId
+    turn_id: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class Page[T]:
     items: tuple[T, ...]
     next_cursor: str | None

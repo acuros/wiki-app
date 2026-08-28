@@ -9,6 +9,7 @@ from llm_wiki.domain.errors import (
     DependencyProtocolError,
     DependencyTimeout,
     DependencyUnavailable,
+    ThreadBusy,
     ThreadNotFound,
 )
 from llm_wiki.domain.models import (
@@ -22,6 +23,7 @@ from llm_wiki.domain.models import (
     ThreadStatusKind,
     ThreadSummary,
     Turn,
+    TurnSubmission,
     UserMessage,
 )
 
@@ -47,6 +49,7 @@ class FakeSource:
     def __init__(self) -> None:
         self.is_ready = True
         self.last_query: ListThreadsQuery | None = None
+        self.calls: list[tuple[str, object, object | None]] = []
         self.error: Exception | None = None
 
     async def start(self) -> None:
@@ -84,6 +87,18 @@ class FakeSource:
                 ),
             ),
         )
+
+    async def create(self, message: str) -> TurnSubmission:
+        if self.error:
+            raise self.error
+        self.calls.append(("create", message, None))
+        return TurnSubmission(ThreadId("thread-new"), "turn-new", "in_progress")
+
+    async def send(self, thread_id: ThreadId, message: str) -> TurnSubmission:
+        if self.error:
+            raise self.error
+        self.calls.append(("send", thread_id, message))
+        return TurnSubmission(thread_id, "turn-next", "in_progress")
 
 
 async def client_for(source: FakeSource) -> httpx.AsyncClient:
@@ -131,6 +146,54 @@ async def test_list_and_detail_contract() -> None:
     assert detail.json()["turns"][0]["omitted_item_types"] == ["reasoning"]
 
 
+async def test_default_thread_page_uses_twenty_items() -> None:
+    source = FakeSource()
+    headers = {"Tailscale-User-Login": "allowed@example.com"}
+    async with await client_for(source) as client:
+        response = await client.get("/api/v1/threads", headers=headers)
+
+    assert response.status_code == 200
+    assert source.last_query == ListThreadsQuery(limit=20)
+
+
+async def test_create_and_send_message_contract() -> None:
+    source = FakeSource()
+    headers = {"Tailscale-User-Login": "allowed@example.com"}
+    async with await client_for(source) as client:
+        created = await client.post("/api/v1/threads", json={"message": "first"}, headers=headers)
+        sent = await client.post(
+            "/api/v1/threads/thread-1/messages",
+            json={"message": "next"},
+            headers=headers,
+        )
+
+    assert created.status_code == 202
+    assert created.json() == {
+        "thread_id": "thread-new",
+        "turn_id": "turn-new",
+        "status": "in_progress",
+    }
+    assert sent.status_code == 202
+    assert sent.json() == {
+        "thread_id": "thread-1",
+        "turn_id": "turn-next",
+        "status": "in_progress",
+    }
+    assert source.calls == [
+        ("create", "first", None),
+        ("send", "thread-1", "next"),
+    ]
+
+
+async def test_rejects_blank_message() -> None:
+    headers = {"Tailscale-User-Login": "allowed@example.com"}
+    async with await client_for(FakeSource()) as client:
+        response = await client.post("/api/v1/threads", json={"message": "   "}, headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
 async def test_invalid_query_uses_error_envelope_and_request_id() -> None:
     headers = {"Tailscale-User-Login": "allowed@example.com", "X-Request-ID": "request-1"}
     async with await client_for(FakeSource()) as client:
@@ -153,12 +216,17 @@ async def test_dependency_errors_are_sanitized() -> None:
         (DependencyTimeout("secret raw payload"), 504, "dependency_timeout"),
         (DependencyProtocolError("secret raw payload"), 502, "dependency_protocol_error"),
         (ThreadNotFound("secret raw payload"), 404, "thread_not_found"),
+        (ThreadBusy("secret raw payload"), 409, "thread_busy"),
     ]
     for error, status, code in cases:
         source = FakeSource()
         source.error = error
         async with await client_for(source) as client:
-            response = await client.get("/api/v1/threads/thread-1", headers=headers)
+            response = await client.post(
+                "/api/v1/threads/thread-1/messages",
+                json={"message": "next"},
+                headers=headers,
+            )
         assert response.status_code == status
         assert response.json()["error"]["code"] == code
         assert "secret" not in response.text

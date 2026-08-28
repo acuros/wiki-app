@@ -11,6 +11,7 @@ from llm_wiki.domain.models import (
     ReferenceContent,
     TextContent,
     ThreadSummary,
+    TurnSubmission,
     UserMessage,
 )
 
@@ -91,6 +92,16 @@ class ThreadDetailResponse(ThreadSummaryResponse):
     turns: list[TurnResponse]
 
 
+class MessageRequest(BaseModel):
+    message: str
+
+
+class TurnSubmissionResponse(BaseModel):
+    thread_id: str
+    turn_id: str
+    status: Literal["in_progress"]
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str
@@ -154,3 +165,11 @@ def thread_detail_response(conversation: Conversation) -> ThreadDetailResponse:
         for turn in conversation.turns
     ]
     return ThreadDetailResponse(**summary.model_dump(), turns=turns)
+
+
+def turn_submission_response(submission: TurnSubmission) -> TurnSubmissionResponse:
+    return TurnSubmissionResponse(
+        thread_id=submission.thread_id,
+        turn_id=submission.turn_id,
+        status="in_progress",
+    )

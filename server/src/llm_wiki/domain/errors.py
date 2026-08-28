@@ -6,7 +6,15 @@ class InvalidThreadQuery(ApplicationError):
     pass
 
 
+class InvalidMessage(ApplicationError):
+    pass
+
+
 class ThreadNotFound(ApplicationError):
+    pass
+
+
+class ThreadBusy(ApplicationError):
     pass
 
 

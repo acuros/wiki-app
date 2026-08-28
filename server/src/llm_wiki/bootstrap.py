@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from llm_wiki.application.ports import ThreadSource
+from llm_wiki.application.thread_commands import ThreadCommandService
 from llm_wiki.application.thread_queries import ThreadQueryService
 from llm_wiki.codex.rpc_client import CodexRpcClient
 from llm_wiki.codex.thread_source import CodexThreadSource
@@ -54,7 +55,9 @@ def create_app(
     configure_logging(settings.log_level)
     app = FastAPI(title="LLM Wiki API", version="1.0.0", lifespan=lifespan)
     app.state.allowed_users = settings.allowed_users
-    app.state.thread_service = ThreadQueryService(cast(ThreadSource, source))
+    thread_source = cast(ThreadSource, source)
+    app.state.thread_query_service = ThreadQueryService(thread_source)
+    app.state.thread_command_service = ThreadCommandService(thread_source)
     app.state.readiness = source
 
     @app.middleware("http")

@@ -9,7 +9,9 @@ from llm_wiki.domain.errors import (
     DependencyProtocolError,
     DependencyTimeout,
     DependencyUnavailable,
+    InvalidMessage,
     InvalidThreadQuery,
+    ThreadBusy,
     ThreadNotFound,
 )
 
@@ -45,6 +47,10 @@ def install_error_handlers(app: FastAPI) -> None:
     async def handle_invalid_query(request: Request, _exc: InvalidThreadQuery) -> JSONResponse:
         return _response(request, 400, "invalid_request", "The request is invalid.")
 
+    @app.exception_handler(InvalidMessage)
+    async def handle_invalid_message(request: Request, _exc: InvalidMessage) -> JSONResponse:
+        return _response(request, 400, "invalid_request", "The request is invalid.")
+
     @app.exception_handler(RequestValidationError)
     async def handle_validation(request: Request, _exc: RequestValidationError) -> JSONResponse:
         return _response(request, 400, "invalid_request", "The request is invalid.")
@@ -52,6 +58,10 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ThreadNotFound)
     async def handle_not_found(request: Request, _exc: ThreadNotFound) -> JSONResponse:
         return _response(request, 404, "thread_not_found", "The requested thread was not found.")
+
+    @app.exception_handler(ThreadBusy)
+    async def handle_thread_busy(request: Request, _exc: ThreadBusy) -> JSONResponse:
+        return _response(request, 409, "thread_busy", "The thread already has an active turn.")
 
     @app.exception_handler(DependencyUnavailable)
     async def handle_unavailable(request: Request, _exc: DependencyUnavailable) -> JSONResponse:

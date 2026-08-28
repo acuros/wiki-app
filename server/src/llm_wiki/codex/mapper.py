@@ -18,6 +18,7 @@ from llm_wiki.domain.models import (
     ThreadStatusKind,
     ThreadSummary,
     Turn,
+    TurnSubmission,
     UserMessage,
 )
 
@@ -229,3 +230,21 @@ def map_thread_read_result(value: object) -> Conversation:
     if not isinstance(turns, list):
         _protocol_error()
     return Conversation(map_thread_summary(raw_thread), tuple(_turn(turn) for turn in turns))
+
+
+def map_thread_start_result(value: object) -> ThreadId:
+    data = _object(value)
+    thread = _object(data.get("thread"))
+    return ThreadId(_required_string(thread, "id"))
+
+
+def map_turn_start_result(thread_id: ThreadId, value: object) -> TurnSubmission:
+    data = _object(value)
+    turn = _object(data.get("turn"))
+    if _required_string(turn, "status") != "inProgress":
+        _protocol_error()
+    return TurnSubmission(
+        thread_id=thread_id,
+        turn_id=_required_string(turn, "id"),
+        status="in_progress",
+    )

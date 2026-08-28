@@ -2,9 +2,14 @@ from datetime import UTC, datetime
 
 import pytest
 
-from llm_wiki.codex.mapper import map_thread_list_result, map_thread_read_result
+from llm_wiki.codex.mapper import (
+    map_thread_list_result,
+    map_thread_read_result,
+    map_thread_start_result,
+    map_turn_start_result,
+)
 from llm_wiki.domain.errors import DependencyProtocolError
-from llm_wiki.domain.models import AssistantMessage, ReferenceContent, UserMessage
+from llm_wiki.domain.models import AssistantMessage, ReferenceContent, ThreadId, UserMessage
 
 
 def raw_thread(*, turns: list[object] | None = None) -> dict[str, object]:
@@ -92,3 +97,28 @@ def test_projects_conversation_entries_and_reports_omissions() -> None:
 def test_rejects_missing_or_invalid_required_fields(payload: object) -> None:
     with pytest.raises(DependencyProtocolError):
         map_thread_list_result(payload)
+
+
+def test_maps_thread_and_turn_start_results() -> None:
+    thread_id = map_thread_start_result({"thread": {"id": "thread-1"}})
+    submission = map_turn_start_result(
+        thread_id,
+        {"turn": {"id": "turn-1", "status": "inProgress", "items": []}},
+    )
+
+    assert submission.thread_id == "thread-1"
+    assert submission.turn_id == "turn-1"
+    assert submission.status == "in_progress"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"turn": {"id": "turn-1", "status": "completed"}},
+        {"turn": {"id": 1, "status": "inProgress"}},
+    ],
+)
+def test_rejects_invalid_turn_start_results(payload: object) -> None:
+    with pytest.raises(DependencyProtocolError):
+        map_turn_start_result(ThreadId("thread-1"), payload)
