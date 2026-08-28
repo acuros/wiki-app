@@ -225,6 +225,8 @@ const styles = StyleSheet.create({
   },
   preview: {
     ...typography.body,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.textMuted,
   },
   recency: {
