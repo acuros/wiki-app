@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { PropsWithChildren } from 'react';
 
 import ThreadDetailScreen from '@/app/threads/[threadId]';
 import { ApiError } from '@/lib/api/client';
+import { TranscriptionError, transcribeRecording } from '@/lib/api/transcriptions';
 import { getThread, sendMessage, TurnSubmission } from '@/lib/api/threads';
 
 jest.mock('expo-router', () => ({
@@ -20,8 +22,34 @@ jest.mock('@/lib/api/threads', () => ({
   sendMessage: jest.fn(),
 }));
 
+jest.mock('@/lib/api/transcriptions', () => ({
+  TranscriptionError: class extends Error {
+    readonly reason: string;
+
+    constructor(mockReason: string) {
+      super(mockReason);
+      this.reason = mockReason;
+    }
+  },
+  transcribeRecording: jest.fn(),
+}));
+
 const mockGetThread = getThread as jest.MockedFunction<typeof getThread>;
 const mockSendMessage = sendMessage as jest.MockedFunction<typeof sendMessage>;
+const mockTranscribeRecording = transcribeRecording as jest.MockedFunction<
+  typeof transcribeRecording
+>;
+const mockRequestRecordingPermissions = requestRecordingPermissionsAsync as jest.MockedFunction<
+  typeof requestRecordingPermissionsAsync
+>;
+const mockSetAudioMode = setAudioModeAsync as jest.MockedFunction<typeof setAudioModeAsync>;
+const mockUseAudioRecorder = useAudioRecorder as jest.MockedFunction<typeof useAudioRecorder>;
+const mockRecorder = {
+  prepareToRecordAsync: jest.fn(async () => undefined),
+  record: jest.fn(),
+  stop: jest.fn(async () => undefined),
+  uri: 'file:///recording.m4a',
+};
 const mockRouter = jest.requireMock('expo-router').router as {
   back: jest.Mock;
 };
@@ -100,6 +128,20 @@ describe('ThreadDetailScreen', () => {
   beforeEach(() => {
     mockGetThread.mockReset();
     mockSendMessage.mockReset();
+    mockTranscribeRecording.mockReset();
+    mockRequestRecordingPermissions.mockReset();
+    mockRequestRecordingPermissions.mockResolvedValue({ granted: true } as never);
+    mockSetAudioMode.mockReset();
+    mockSetAudioMode.mockResolvedValue(undefined);
+    mockUseAudioRecorder.mockReset();
+    mockUseAudioRecorder.mockReturnValue(
+      mockRecorder as unknown as ReturnType<typeof useAudioRecorder>,
+    );
+    mockRecorder.prepareToRecordAsync.mockReset();
+    mockRecorder.prepareToRecordAsync.mockResolvedValue(undefined);
+    mockRecorder.record.mockReset();
+    mockRecorder.stop.mockReset();
+    mockRecorder.stop.mockResolvedValue(undefined);
     mockRouter.back.mockReset();
   });
 
@@ -205,6 +247,55 @@ describe('ThreadDetailScreen', () => {
     expect(screen.getByRole('button', { name: '메시지 보내기' }).props.accessibilityState).toEqual(
       expect.objectContaining({ disabled: true }),
     );
+    expect(screen.getByRole('button', { name: '음성 입력 시작' }).props.accessibilityState).toEqual(
+      expect.objectContaining({ disabled: true }),
+    );
+  });
+
+  it('records speech and appends the transcript to the draft without sending it', async () => {
+    mockGetThread.mockResolvedValue(detail);
+    mockTranscribeRecording.mockResolvedValue('받아쓴 문장');
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    const input = await screen.findByLabelText('메시지 입력');
+    await fireEvent.changeText(input, '기존 입력');
+
+    await fireEvent.press(screen.getByRole('button', { name: '음성 입력 시작' }));
+
+    expect(mockRequestRecordingPermissions).toHaveBeenCalledTimes(1);
+    expect(mockSetAudioMode).toHaveBeenCalledWith({
+      allowsRecording: true,
+      playsInSilentMode: true,
+    });
+    expect(mockRecorder.record).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('녹음 중... 마이크 버튼을 다시 눌러 완료하세요.')).toBeTruthy();
+    expect(screen.getByLabelText('메시지 입력').props.editable).toBe(false);
+
+    await fireEvent.press(screen.getByRole('button', { name: '음성 녹음 중지' }));
+
+    await waitFor(() =>
+      expect(mockTranscribeRecording).toHaveBeenCalledWith('file:///recording.m4a'),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('메시지 입력').props.value).toBe('기존 입력 받아쓴 문장'),
+    );
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the draft and shows an inline error when transcription fails', async () => {
+    mockGetThread.mockResolvedValue(detail);
+    mockTranscribeRecording.mockRejectedValue(new TranscriptionError('busy'));
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    const input = await screen.findByLabelText('메시지 입력');
+    await fireEvent.changeText(input, '보존할 입력');
+    await fireEvent.press(screen.getByRole('button', { name: '음성 입력 시작' }));
+    await fireEvent.press(await screen.findByRole('button', { name: '음성 녹음 중지' }));
+
+    expect(
+      await screen.findByText('음성 변환 서버가 사용 중입니다. 잠시 후 다시 시도해주세요.'),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('메시지 입력').props.value).toBe('보존할 입력');
   });
 
   it('polls while active and stops after the thread becomes idle', async () => {

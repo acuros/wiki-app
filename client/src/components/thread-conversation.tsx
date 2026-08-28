@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { VoiceInputButton, VoiceInputState } from '@/components/voice-input-button';
 import { ApiError } from '@/lib/api/client';
 import {
   createThread,
@@ -155,6 +156,8 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const submissionInFlightRef = useRef(false);
   const [draft, setDraft] = useState('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceState, setVoiceState] = useState<VoiceInputState>('idle');
   const query = useQuery({
     queryKey: ['thread', threadId],
     queryFn: () => getThread(threadId || ''),
@@ -226,16 +229,27 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
 
   const isActive = query.data?.status === 'active';
   const isSubmitting = mutation.isPending;
+  const isUsingVoice = voiceState !== 'idle';
   const submissionError = mutation.error ? submissionErrorMessage(mutation.error) : null;
   const emptyMessage = isNew ? '첫 메시지를 입력해주세요.' : '표시할 대화가 없습니다.';
   const title = isNew ? '새 Thread' : query.data?.title || '제목 없는 스레드';
   const submit = () => {
-    if (!draft.trim() || isActive || isSubmitting || submissionInFlightRef.current) {
+    if (
+      !draft.trim() ||
+      isActive ||
+      isSubmitting ||
+      isUsingVoice ||
+      submissionInFlightRef.current
+    ) {
       return;
     }
     submissionInFlightRef.current = true;
     mutation.mutate(draft);
   };
+  const appendTranscript = (text: string) => {
+    setDraft((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${text}`);
+  };
+  const composerDisabled = isActive || isSubmitting || isUsingVoice;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -262,26 +276,42 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
             <Text style={styles.errorText}>대화를 갱신하지 못했습니다.</Text>
           ) : null}
           {submissionError ? <Text style={styles.errorText}>{submissionError}</Text> : null}
+          {voiceError ? <Text style={styles.errorText}>{voiceError}</Text> : null}
           {isActive ? <Text style={styles.progressText}>답변 작성 중...</Text> : null}
+          {voiceState === 'preparing' ? (
+            <Text style={styles.progressText}>마이크 준비 중...</Text>
+          ) : null}
+          {voiceState === 'recording' ? (
+            <Text style={styles.progressText}>녹음 중... 마이크 버튼을 다시 눌러 완료하세요.</Text>
+          ) : null}
+          {voiceState === 'transcribing' ? (
+            <Text style={styles.progressText}>음성을 문자로 변환하는 중...</Text>
+          ) : null}
           <View style={styles.composerRow}>
             <TextInput
               accessibilityLabel="메시지 입력"
-              editable={!isActive && !isSubmitting}
+              editable={!composerDisabled}
               multiline
               onChangeText={setDraft}
               placeholder="메시지를 입력하세요"
               placeholderTextColor={colors.textMuted}
-              style={[styles.input, (isActive || isSubmitting) && styles.inputDisabled]}
+              style={[styles.input, composerDisabled && styles.inputDisabled]}
               value={draft}
+            />
+            <VoiceInputButton
+              disabled={isActive || isSubmitting}
+              onError={setVoiceError}
+              onStateChange={setVoiceState}
+              onTranscript={appendTranscript}
             />
             <Pressable
               accessibilityLabel="메시지 보내기"
               accessibilityRole="button"
-              disabled={!draft.trim() || isActive || isSubmitting}
+              disabled={!draft.trim() || composerDisabled}
               onPress={submit}
               style={({ pressed }) => [
                 styles.sendButton,
-                (!draft.trim() || isActive || isSubmitting) && styles.sendButtonDisabled,
+                (!draft.trim() || composerDisabled) && styles.sendButtonDisabled,
                 pressed && styles.pressed,
               ]}
             >
