@@ -14,8 +14,12 @@ npm run ios
 
 배포 API를 사용할 때는 `.env.example`의 Tailnet URL을 그대로 사용합니다. 실제 기기는 같은
 Tailnet에 연결되어 있어야 합니다. 로컬 서버를 사용할 때만 Simulator에서는 `localhost`, 실제
-기기에서는 개발 Mac의 LAN 주소로 `EXPO_PUBLIC_API_URL`을 변경합니다. `EXPO_PUBLIC_*` 값은
-앱 번들에 포함되므로 비밀값을 저장하면 안 됩니다.
+기기에서는 개발 Mac의 LAN 주소로 `EXPO_PUBLIC_API_URL`을 변경합니다.
+
+음성 입력은 앱에서 `https://transcription.joshua.kim/v1/audio/transcriptions`로 직접 요청합니다.
+로컬 빌드는 `app.config.js`가 `/etc/transcription-api.env`의 `TRANSCRIPTION_API_KEY`를 읽어 앱
+설정에 포함합니다. 다른 환경에서는 `.env.local`의 `EXPO_PUBLIC_TRANSCRIPTION_API_KEY`를
+사용합니다. 이 키는 앱 번들에서 추출할 수 있으므로 현재의 개인용 배포에만 사용하는 전제입니다.
 
 ## 구조
 
