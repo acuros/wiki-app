@@ -17,7 +17,8 @@ EXECUTABLE_ENV = "LLM_WIKI_LIVE_CODEX_EXECUTABLE"
 )
 async def test_current_app_server_can_list_and_read_threads() -> None:
     executable = os.environ[EXECUTABLE_ENV]
-    socket_path = f"/tmp/llm-wiki-codex-test-{os.getpid()}.sock"
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    socket_path = f"{runtime_dir}/llm-wiki-codex-test-{os.getpid()}.sock"
     async_socket_path = AsyncPath(socket_path)
     process = await asyncio.create_subprocess_exec(
         executable,

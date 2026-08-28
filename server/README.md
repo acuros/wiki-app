@@ -18,7 +18,8 @@ uv run mypy
 Codex app-server는 별도 process로 먼저 실행한다.
 
 ```bash
-/usr/lib/chatgpt/resources/codex app-server --listen unix:///tmp/llm-wiki-codex.sock
+/usr/lib/chatgpt/resources/codex app-server \
+  --listen "unix://${XDG_RUNTIME_DIR}/llm-wiki-codex.sock"
 ```
 
 허용할 Tailscale 로그인 계정을 설정하고 localhost에서 Web API를 실행한다.
