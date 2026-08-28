@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,7 +16,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { getThreads, ThreadSummary } from '@/lib/api/threads';
 import { colors, spacing, typography } from '@/theme/tokens';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 const recencyFormatter = new Intl.DateTimeFormat('ko-KR', {
   month: 'short',
   day: 'numeric',
@@ -91,7 +91,29 @@ function InitialState({ error, retry }: { error: boolean; retry: () => void }) {
   );
 }
 
+function HomeHeader() {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerTitleRow}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>WIKI APP</Text>
+          <Text style={styles.title}>Threads</Text>
+        </View>
+        <Pressable
+          accessibilityLabel="새 Thread 시작하기"
+          accessibilityRole="button"
+          onPress={() => router.push('/threads/new')}
+          style={({ pressed }) => [styles.newThreadButton, pressed && styles.cardPressed]}
+        >
+          <Text style={styles.newThreadButtonText}>새 Thread</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
+  const fetchingNextPageRef = useRef(false);
   const query = useInfiniteQuery({
     queryKey: ['threads'],
     initialPageParam: null as string | null,
@@ -123,12 +145,27 @@ export default function HomeScreen() {
     void query.refetch();
   };
 
-  if (query.isPending || query.isError) {
+  const fetchNextPage = () => {
+    if (!query.hasNextPage || query.isFetchingNextPage || fetchingNextPageRef.current) {
+      return;
+    }
+    fetchingNextPageRef.current = true;
+    void query.fetchNextPage().finally(() => {
+      fetchingNextPageRef.current = false;
+    });
+  };
+
+  const loadNextPage = () => {
+    if (!query.isFetchNextPageError) {
+      fetchNextPage();
+    }
+  };
+
+  if (query.isPending || (query.isError && !query.data)) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <Text style={styles.eyebrow}>WIKI APP</Text>
-          <Text style={styles.title}>Threads</Text>
+        <View style={styles.initialHeader}>
+          <HomeHeader />
         </View>
         <InitialState error={query.isError} retry={retry} />
       </SafeAreaView>
@@ -144,26 +181,26 @@ export default function HomeScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.stateTitle}>표시할 스레드가 없습니다.</Text>
-            <Text style={styles.stateDescription}>새 스레드가 생기면 여기에 표시됩니다.</Text>
+            <Text style={styles.stateDescription}>새 Thread를 시작해 첫 메시지를 보내보세요.</Text>
           </View>
         }
         ListFooterComponent={
-          query.hasNextPage ? (
+          query.isFetchNextPageError ? (
             <View style={styles.footer}>
-              <PrimaryButton
-                disabled={query.isFetchingNextPage}
-                label={query.isFetchingNextPage ? '불러오는 중...' : '더 보기'}
-                onPress={() => void query.fetchNextPage()}
+              <PrimaryButton label="다음 목록 다시 시도" onPress={fetchNextPage} />
+            </View>
+          ) : query.isFetchingNextPage ? (
+            <View style={styles.footer}>
+              <ActivityIndicator
+                accessibilityLabel="다음 스레드 불러오는 중"
+                color={colors.primary}
               />
             </View>
           ) : null
         }
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>WIKI APP</Text>
-            <Text style={styles.title}>Threads</Text>
-          </View>
-        }
+        ListHeaderComponent={<HomeHeader />}
+        onEndReached={loadNextPage}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             onRefresh={retry}
@@ -172,6 +209,7 @@ export default function HomeScreen() {
           />
         }
         renderItem={({ item }) => <ThreadCard thread={item} />}
+        testID="thread-list"
       />
     </SafeAreaView>
   );
@@ -190,8 +228,32 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  initialHeader: {
+    padding: spacing.lg,
+    paddingBottom: 0,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  newThreadButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+  },
+  newThreadButtonText: {
+    ...typography.button,
+    color: colors.onPrimary,
   },
   card: {
     gap: spacing.sm,

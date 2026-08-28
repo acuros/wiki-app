@@ -18,7 +18,7 @@ describe('thread API', () => {
     mockFetchJson.mockResolvedValue(response);
 
     await expect(getThreads()).resolves.toBe(response);
-    expect(mockFetchJson).toHaveBeenCalledWith('/api/v1/threads?limit=50&archived=false');
+    expect(mockFetchJson).toHaveBeenCalledWith('/api/v1/threads?limit=20&archived=false');
   });
 
   it('encodes a pagination cursor', async () => {

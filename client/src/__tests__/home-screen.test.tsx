@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { PropsWithChildren } from 'react';
 
 import HomeScreen from '@/app/index';
@@ -71,6 +71,9 @@ describe('HomeScreen', () => {
       pathname: './threads/[threadId]',
       params: { threadId: 'thread-1' },
     });
+
+    await fireEvent.press(screen.getByRole('button', { name: '새 Thread 시작하기' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/threads/new');
   });
 
   it('shows an empty state', async () => {
@@ -104,13 +107,43 @@ describe('HomeScreen', () => {
     const screen = await render(<HomeScreen />, { wrapper: createWrapper() });
 
     expect(await screen.findByText('Thread title')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+    expect(mockGetThreads).toHaveBeenNthCalledWith(1, {
+      archived: false,
+      cursor: undefined,
+      limit: 20,
+    });
+    const list = screen.getByTestId('thread-list');
+    await act(async () => {
+      list.props.onEndReached();
+      list.props.onEndReached();
+    });
+
+    expect(mockGetThreads).toHaveBeenCalledTimes(2);
     expect(await screen.findByText('Second thread')).toBeTruthy();
     expect(screen.getAllByText('Thread title')).toHaveLength(1);
     expect(mockGetThreads).toHaveBeenNthCalledWith(2, {
       archived: false,
       cursor: 'next cursor',
-      limit: 50,
+      limit: 20,
     });
+  });
+
+  it('keeps the current list and retries a failed next page', async () => {
+    mockGetThreads
+      .mockResolvedValueOnce({ threads: [thread], next_cursor: 'next cursor' })
+      .mockRejectedValueOnce(new ApiError('failed', 503))
+      .mockResolvedValueOnce({
+        threads: [{ ...thread, id: 'thread-2', title: 'Second thread' }],
+        next_cursor: null,
+      });
+
+    const screen = await render(<HomeScreen />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText('Thread title')).toBeTruthy();
+    await fireEvent(screen.getByTestId('thread-list'), 'endReached');
+    await fireEvent.press(await screen.findByRole('button', { name: '다음 목록 다시 시도' }));
+
+    expect(await screen.findByText('Second thread')).toBeTruthy();
+    expect(screen.getByText('Thread title')).toBeTruthy();
   });
 });

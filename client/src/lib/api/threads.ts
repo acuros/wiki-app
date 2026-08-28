@@ -83,7 +83,7 @@ type GetThreadsOptions = {
 
 export function getThreads({
   cursor,
-  limit = 50,
+  limit = 20,
   archived = false,
 }: GetThreadsOptions = {}): Promise<ThreadListResponse> {
   const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
