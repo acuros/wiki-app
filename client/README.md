@@ -12,9 +12,10 @@ cp .env.example .env.local
 npm run ios
 ```
 
-iOS Simulator에서는 `localhost`가 개발 Mac을 가리킵니다. 실제 기기에서는
-`EXPO_PUBLIC_API_URL`을 Mac의 LAN 주소로 변경해야 합니다. `EXPO_PUBLIC_*` 값은 앱 번들에
-포함되므로 비밀값을 저장하면 안 됩니다.
+배포 API를 사용할 때는 `.env.example`의 Tailnet URL을 그대로 사용합니다. 실제 기기는 같은
+Tailnet에 연결되어 있어야 합니다. 로컬 서버를 사용할 때만 Simulator에서는 `localhost`, 실제
+기기에서는 개발 Mac의 LAN 주소로 `EXPO_PUBLIC_API_URL`을 변경합니다. `EXPO_PUBLIC_*` 값은
+앱 번들에 포함되므로 비밀값을 저장하면 안 됩니다.
 
 ## 구조
 
