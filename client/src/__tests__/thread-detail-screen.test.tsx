@@ -1,23 +1,27 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { PropsWithChildren } from 'react';
 
 import ThreadDetailScreen from '@/app/threads/[threadId]';
 import { ApiError } from '@/lib/api/client';
-import { getThread } from '@/lib/api/threads';
+import { getThread, sendMessage, TurnSubmission } from '@/lib/api/threads';
 
 jest.mock('expo-router', () => ({
   router: {
     back: jest.fn(),
+    replace: jest.fn(),
   },
   useLocalSearchParams: jest.fn(() => ({ threadId: 'thread-1' })),
 }));
 
 jest.mock('@/lib/api/threads', () => ({
+  createThread: jest.fn(),
   getThread: jest.fn(),
+  sendMessage: jest.fn(),
 }));
 
 const mockGetThread = getThread as jest.MockedFunction<typeof getThread>;
+const mockSendMessage = sendMessage as jest.MockedFunction<typeof sendMessage>;
 const mockRouter = jest.requireMock('expo-router').router as {
   back: jest.Mock;
 };
@@ -83,6 +87,7 @@ function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false, gcTime: 0 },
     },
   });
 
@@ -94,6 +99,7 @@ function createWrapper() {
 describe('ThreadDetailScreen', () => {
   beforeEach(() => {
     mockGetThread.mockReset();
+    mockSendMessage.mockReset();
     mockRouter.back.mockReset();
   });
 
@@ -131,5 +137,94 @@ describe('ThreadDetailScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('제목 없는 스레드')).toBeTruthy();
     expect(screen.getByText('표시할 대화가 없습니다.')).toBeTruthy();
+  });
+
+  it('sends a message, clears the draft, and refreshes the conversation', async () => {
+    mockGetThread.mockResolvedValue(detail);
+    let resolveSubmission: (submission: TurnSubmission) => void = () => undefined;
+    mockSendMessage.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSubmission = resolve;
+      }),
+    );
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    const input = await screen.findByLabelText('메시지 입력');
+
+    await fireEvent.changeText(input, 'Follow up');
+    const sendButton = screen.getByRole('button', { name: '메시지 보내기' });
+    await waitFor(() =>
+      expect(sendButton.props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: false }),
+      ),
+    );
+    await fireEvent.press(sendButton);
+    await fireEvent.press(sendButton);
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveSubmission({
+        thread_id: 'thread-1',
+        turn_id: 'turn-2',
+        status: 'in_progress',
+      });
+    });
+
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('thread-1', 'Follow up'));
+    await waitFor(() => expect(screen.getByLabelText('메시지 입력').props.value).toBe(''));
+    expect(mockGetThread.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('keeps the draft and shows a conflict when submission fails', async () => {
+    mockGetThread.mockResolvedValue(detail);
+    mockSendMessage.mockRejectedValue(new ApiError('busy', 409));
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    const input = await screen.findByLabelText('메시지 입력');
+
+    await fireEvent.changeText(input, 'Try later');
+    const sendButton = screen.getByRole('button', { name: '메시지 보내기' });
+    await waitFor(() =>
+      expect(sendButton.props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: false }),
+      ),
+    );
+    await fireEvent.press(sendButton);
+
+    expect(await screen.findByText('현재 답변이 끝난 뒤 다시 보내주세요.')).toBeTruthy();
+    expect(screen.getByLabelText('메시지 입력').props.value).toBe('Try later');
+  });
+
+  it('disables composing while a turn is active', async () => {
+    mockGetThread.mockResolvedValue({ ...detail, status: 'active' });
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText('답변 작성 중...')).toBeTruthy();
+    expect(screen.getByLabelText('메시지 입력').props.editable).toBe(false);
+    expect(screen.getByRole('button', { name: '메시지 보내기' }).props.accessibilityState).toEqual(
+      expect.objectContaining({ disabled: true }),
+    );
+  });
+
+  it('polls while active and stops after the thread becomes idle', async () => {
+    jest.useFakeTimers();
+    mockGetThread
+      .mockResolvedValueOnce({ ...detail, status: 'active' })
+      .mockResolvedValue({ ...detail, status: 'idle' });
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    expect(await screen.findByText('답변 작성 중...')).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1_500);
+    });
+    expect(mockGetThread).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      jest.advanceTimersByTime(3_000);
+    });
+    expect(mockGetThread).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
   });
 });

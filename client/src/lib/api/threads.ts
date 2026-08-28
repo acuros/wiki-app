@@ -69,6 +69,12 @@ export type ThreadDetail = ThreadSummary & {
   turns: ThreadTurn[];
 };
 
+export type TurnSubmission = {
+  thread_id: string;
+  turn_id: string;
+  status: 'in_progress';
+};
+
 type GetThreadsOptions = {
   cursor?: string;
   limit?: number;
@@ -88,4 +94,28 @@ export function getThreads({
 
 export function getThread(threadId: string): Promise<ThreadDetail> {
   return fetchJson<ThreadDetail>(`/api/v1/threads/${encodeURIComponent(threadId)}`);
+}
+
+const MESSAGE_TIMEOUT_MS = 65_000;
+
+export function createThread(message: string): Promise<TurnSubmission> {
+  return fetchJson<TurnSubmission>(
+    '/api/v1/threads',
+    {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    },
+    MESSAGE_TIMEOUT_MS,
+  );
+}
+
+export function sendMessage(threadId: string, message: string): Promise<TurnSubmission> {
+  return fetchJson<TurnSubmission>(
+    `/api/v1/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    },
+    MESSAGE_TIMEOUT_MS,
+  );
 }
