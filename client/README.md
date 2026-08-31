@@ -22,6 +22,29 @@ API 키는 `.env.local`의 `EXPO_PUBLIC_TRANSCRIPTION_API_KEY`에서만 읽고, 
 값이 있어야 하므로 release 빌드 전에도 채워두어야 합니다. 이 키는 앱 번들에서 추출할 수
 있으므로 현재의 개인용 배포에만 사용하는 전제입니다.
 
+## OTA 업데이트 (EAS Update)
+
+App Store 배포 없이 직접 설치한 release 빌드도 Expo의 호스팅 업데이트를 받을 수 있습니다.
+처음 한 번 Expo 계정으로 설정한 뒤 새 iOS 빌드를 설치하면, 이후 JavaScript/스타일/이미지
+변경은 다음 명령으로 배포합니다.
+
+```bash
+npx eas-cli@latest update --channel production --message "변경 내용"
+```
+
+최초 설정은 Expo 계정 로그인 후 한 번만 실행합니다. 이 명령은 프로젝트 ID, 업데이트 URL,
+runtime version을 앱 설정에 추가합니다.
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest update:configure
+npm run ios
+```
+
+`expo-updates` 또는 앱 설정 자체를 바꾸거나, 새 네이티브 모듈·iOS 권한을 추가한 경우에는
+OTA로 배포할 수 없으므로 `npm run ios`로 새 빌드를 다시 설치해야 합니다. Expo Go 개발 실행은
+이 production 채널을 검증하는 대상이 아닙니다.
+
 ## 구조
 
 - `src/app`: Expo Router 화면과 layout
