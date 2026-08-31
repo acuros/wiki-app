@@ -64,6 +64,7 @@ describe('HomeScreen', () => {
     expect(await screen.findByText('Thread title')).toBeTruthy();
     expect(screen.getByText('제목 없는 스레드')).toBeTruthy();
     expect(screen.getByText('진행 중')).toBeTruthy();
+    expect(screen.getByText('+')).toBeTruthy();
     expect(screen.queryByText('not_loaded')).toBeNull();
 
     await fireEvent.press(screen.getByRole('button', { name: '스레드 열기: Thread title' }));
@@ -73,7 +74,8 @@ describe('HomeScreen', () => {
     });
 
     await fireEvent.press(screen.getByRole('button', { name: '새 Thread 시작하기' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/threads/new');
+    expect(screen.getByText('새 Thread')).toBeTruthy();
+    expect(mockRouter.push).not.toHaveBeenCalledWith('/threads/new');
   });
 
   it('shows an empty state', async () => {

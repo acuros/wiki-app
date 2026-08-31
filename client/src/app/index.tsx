@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { ThreadConversation } from '@/components/thread-conversation';
 import { getThreads, ThreadSummary } from '@/lib/api/threads';
 import { colors, spacing, typography } from '@/theme/tokens';
 
@@ -91,7 +92,7 @@ function InitialState({ error, retry }: { error: boolean; retry: () => void }) {
   );
 }
 
-function HomeHeader() {
+function HomeHeader({ onNewThread }: { onNewThread: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerTitleRow}>
@@ -102,10 +103,10 @@ function HomeHeader() {
         <Pressable
           accessibilityLabel="새 Thread 시작하기"
           accessibilityRole="button"
-          onPress={() => router.push('/threads/new')}
+          onPress={onNewThread}
           style={({ pressed }) => [styles.newThreadButton, pressed && styles.cardPressed]}
         >
-          <Text style={styles.newThreadButtonText}>새 Thread</Text>
+          <Text style={styles.newThreadButtonText}>+</Text>
         </Pressable>
       </View>
     </View>
@@ -114,6 +115,7 @@ function HomeHeader() {
 
 export default function HomeScreen() {
   const fetchingNextPageRef = useRef(false);
+  const [isCreatingThread, setIsCreatingThread] = useState(false);
   const query = useInfiniteQuery({
     queryKey: ['threads'],
     initialPageParam: null as string | null,
@@ -161,11 +163,15 @@ export default function HomeScreen() {
     }
   };
 
+  if (isCreatingThread) {
+    return <ThreadConversation onClose={() => setIsCreatingThread(false)} />;
+  }
+
   if (query.isPending || (query.isError && !query.data)) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.initialHeader}>
-          <HomeHeader />
+          <HomeHeader onNewThread={() => setIsCreatingThread(true)} />
         </View>
         <InitialState error={query.isError} retry={retry} />
       </SafeAreaView>
@@ -198,7 +204,7 @@ export default function HomeScreen() {
             </View>
           ) : null
         }
-        ListHeaderComponent={<HomeHeader />}
+        ListHeaderComponent={<HomeHeader onNewThread={() => setIsCreatingThread(true)} />}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.5}
         refreshControl={
@@ -245,14 +251,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   newThreadButton: {
-    minHeight: 40,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
   },
   newThreadButtonText: {
-    ...typography.button,
+    fontSize: 28,
+    lineHeight: 32,
     color: colors.onPrimary,
   },
   card: {

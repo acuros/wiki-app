@@ -36,6 +36,7 @@ type ConversationItem = {
 
 type ThreadConversationProps = {
   threadId?: string;
+  onClose?: () => void;
 };
 
 const referenceLabels: Record<string, string> = {
@@ -95,14 +96,14 @@ function ConversationEntry({ entry }: { entry: ThreadEntry }) {
   );
 }
 
-function Header({ title }: { title: string }) {
+function Header({ onClose, title }: { onClose?: () => void; title: string }) {
   return (
     <View style={styles.header}>
       <Pressable
         accessibilityLabel="뒤로가기"
         accessibilityRole="button"
         hitSlop={12}
-        onPress={() => router.back()}
+        onPress={() => onClose?.() ?? router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
         <Text style={styles.backIcon}>‹</Text>
@@ -150,8 +151,9 @@ function submissionErrorMessage(error: Error) {
   return '메시지를 보내지 못했습니다. 다시 시도해주세요.';
 }
 
-export function ThreadConversation({ threadId }: ThreadConversationProps) {
-  const isNew = threadId === undefined;
+export function ThreadConversation({ onClose, threadId }: ThreadConversationProps) {
+  const [activeThreadId, setActiveThreadId] = useState(threadId);
+  const isNew = activeThreadId === undefined;
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const submissionInFlightRef = useRef(false);
@@ -159,30 +161,27 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceInputState>('idle');
   const query = useQuery({
-    queryKey: ['thread', threadId],
-    queryFn: () => getThread(threadId || ''),
-    enabled: !isNew && Boolean(threadId),
+    queryKey: ['thread', activeThreadId],
+    queryFn: () => getThread(activeThreadId || ''),
+    enabled: !isNew && Boolean(activeThreadId),
     refetchInterval: (currentQuery) =>
       currentQuery.state.data?.status === 'active' ? POLL_INTERVAL_MS : false,
   });
 
   const mutation = useMutation({
     mutationFn: (message: string) =>
-      isNew ? createThread(message) : sendMessage(threadId || '', message),
+      isNew ? createThread(message) : sendMessage(activeThreadId || '', message),
     onSuccess: (submission) => {
       setDraft('');
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       if (isNew) {
-        router.replace({
-          pathname: '/threads/[threadId]',
-          params: { threadId: submission.thread_id },
-        });
+        setActiveThreadId(submission.thread_id);
         return;
       }
-      queryClient.setQueryData<ThreadDetail>(['thread', threadId], (current) =>
+      queryClient.setQueryData<ThreadDetail>(['thread', activeThreadId], (current) =>
         current ? { ...current, status: 'active' } : current,
       );
-      void queryClient.invalidateQueries({ queryKey: ['thread', threadId] });
+      void queryClient.invalidateQueries({ queryKey: ['thread', activeThreadId] });
     },
     onSettled: () => {
       submissionInFlightRef.current = false;
@@ -203,7 +202,7 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
   if (!isNew && !threadId) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Header title="Thread" />
+        <Header onClose={onClose} title="Thread" />
         <DetailState message="스레드 주소가 올바르지 않습니다." />
       </SafeAreaView>
     );
@@ -212,7 +211,7 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
   if (!isNew && query.isPending) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Header title="Thread" />
+        <Header onClose={onClose} title="Thread" />
         <DetailState />
       </SafeAreaView>
     );
@@ -221,7 +220,7 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
   if (!isNew && query.isError && !query.data) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Header title="Thread" />
+        <Header onClose={onClose} title="Thread" />
         <DetailState message={detailErrorMessage(query.error)} retry={() => void query.refetch()} />
       </SafeAreaView>
     );
@@ -253,7 +252,7 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Header title={title} />
+      <Header onClose={onClose} title={title} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoidingView}
@@ -318,7 +317,7 @@ export function ThreadConversation({ threadId }: ThreadConversationProps) {
               {isSubmitting ? (
                 <ActivityIndicator color={colors.onPrimary} size="small" />
               ) : (
-                <Text style={styles.sendButtonText}>전송</Text>
+                <Text style={styles.sendButtonText}>↑</Text>
               )}
             </Pressable>
           </View>
@@ -478,19 +477,19 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   sendButton: {
-    minWidth: 64,
+    width: 44,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
   },
   sendButtonDisabled: {
     opacity: 0.45,
   },
   sendButtonText: {
-    ...typography.button,
+    fontSize: 24,
+    lineHeight: 28,
     color: colors.onPrimary,
   },
   progressText: {
