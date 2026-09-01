@@ -24,13 +24,16 @@ API 키는 `.env.local`의 `EXPO_PUBLIC_TRANSCRIPTION_API_KEY`에서만 읽고, 
 
 ## OTA 업데이트 (EAS Update)
 
-App Store 배포 없이 직접 설치한 release 빌드도 Expo의 호스팅 업데이트를 받을 수 있습니다.
-처음 한 번 Expo 계정으로 설정한 뒤 새 iOS 빌드를 설치하면, 이후 JavaScript/스타일/이미지
-변경은 다음 명령으로 배포합니다.
+App Store 배포 없이 직접 설치한 내부 배포 빌드도 Expo의 호스팅 업데이트를 받을 수 있습니다.
+처음 한 번 Expo 계정으로 설정한 뒤 `preview` iOS 빌드를 설치하면, 이후
+JavaScript/스타일/이미지 변경은 저장소 최상단에서 다음 명령으로 배포합니다.
 
 ```bash
-npx eas-cli@latest update --channel production --message "변경 내용"
+make deploy-front UPDATE_MESSAGE="변경 내용"
 ```
+
+이 명령은 `npm run verify`를 통과한 뒤 `preview` 채널에 iOS JavaScript 번들과 에셋만
+발행합니다. 네이티브 iOS 빌드를 다시 만들지 않습니다.
 
 최초 설정은 Expo 계정 로그인 후 한 번만 실행합니다. 이 명령은 프로젝트 ID, 업데이트 URL,
 runtime version을 앱 설정에 추가합니다.
@@ -38,12 +41,12 @@ runtime version을 앱 설정에 추가합니다.
 ```bash
 npx eas-cli@latest login
 npx eas-cli@latest update:configure
-npm run ios
+npx eas-cli@latest build --platform ios --profile preview
 ```
 
 `expo-updates` 또는 앱 설정 자체를 바꾸거나, 새 네이티브 모듈·iOS 권한을 추가한 경우에는
-OTA로 배포할 수 없으므로 `npm run ios`로 새 빌드를 다시 설치해야 합니다. Expo Go 개발 실행은
-이 production 채널을 검증하는 대상이 아닙니다.
+OTA로 배포할 수 없으므로 새 `preview` 빌드를 설치해야 합니다. Expo Go 개발 실행은 이 내부
+배포 채널을 검증하는 대상이 아닙니다.
 
 ## 구조
 
