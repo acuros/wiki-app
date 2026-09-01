@@ -82,6 +82,9 @@ describe('NewThreadScreen', () => {
     await fireEvent.press(sendButton);
 
     await waitFor(() => expect(mockCreateThread).toHaveBeenCalledWith('First message'));
+    expect(await screen.findByText('New thread')).toBeTruthy();
+    expect(mockGetThread).toHaveBeenCalledWith('thread-new');
+    expect(screen.queryByText('스레드 주소가 올바르지 않습니다.')).toBeNull();
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 

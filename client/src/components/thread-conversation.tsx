@@ -199,7 +199,7 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     [query.data],
   );
 
-  if (!isNew && !threadId) {
+  if (!isNew && !activeThreadId) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Header onClose={onClose} title="Thread" />
