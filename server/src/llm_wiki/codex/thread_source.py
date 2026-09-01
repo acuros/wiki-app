@@ -28,21 +28,27 @@ class CodexThreadSource:
         await self._client.stop()
 
     async def list(self, query: ListThreadsQueryLike) -> Page[ThreadSummary]:
-        try:
-            result = await self._client.request(
-                "thread/list",
-                {
-                    "cursor": query.cursor,
-                    "limit": query.limit,
-                    "sortKey": "recency_at",
-                    "sortDirection": "desc",
-                    "sourceKinds": ["appServer", "cli", "vscode"],
-                    "archived": query.archived,
-                },
-            )
-        except RpcRemoteError as exc:
-            raise DependencyProtocolError("Codex rejected thread/list") from exc
-        return map_thread_list_result(result)
+        cursor = query.cursor
+        while True:
+            try:
+                result = await self._client.request(
+                    "thread/list",
+                    {
+                        "cursor": cursor,
+                        "limit": query.limit,
+                        "sortKey": "recency_at",
+                        "sortDirection": "desc",
+                        "sourceKinds": ["appServer", "cli", "vscode"],
+                        "archived": query.archived,
+                    },
+                )
+            except RpcRemoteError as exc:
+                raise DependencyProtocolError("Codex rejected thread/list") from exc
+            page = map_thread_list_result(result)
+            wiki_threads = tuple(thread for thread in page.items if thread.cwd == WIKI_PROJECT_CWD)
+            if wiki_threads or page.next_cursor is None:
+                return Page(items=wiki_threads, next_cursor=page.next_cursor)
+            cursor = page.next_cursor
 
     async def read(self, thread_id: ThreadId) -> Conversation:
         try:

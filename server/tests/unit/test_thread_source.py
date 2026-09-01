@@ -4,7 +4,7 @@ import pytest
 
 from llm_wiki.application.thread_queries import ListThreadsQuery
 from llm_wiki.codex.rpc_client import CodexRpcClient, RpcRemoteError
-from llm_wiki.codex.thread_source import CodexThreadSource
+from llm_wiki.codex.thread_source import WIKI_PROJECT_CWD, CodexThreadSource
 from llm_wiki.domain.errors import DependencyProtocolError, ThreadBusy, ThreadNotFound
 from llm_wiki.domain.models import ThreadId
 
@@ -27,6 +27,21 @@ class FakeRpcClient:
         return self.result
 
 
+def raw_thread(thread_id: str, cwd: str) -> dict[str, object]:
+    return {
+        "id": thread_id,
+        "name": f"{thread_id} title",
+        "preview": thread_id,
+        "source": "appServer",
+        "cwd": cwd,
+        "projectId": None,
+        "createdAt": 1_700_000_000,
+        "updatedAt": 1_700_000_000,
+        "recencyAt": 1_700_000_000,
+        "status": {"type": "idle", "activeFlags": []},
+    }
+
+
 async def test_list_translates_query_to_stable_codex_method() -> None:
     client = FakeRpcClient()
     source = CodexThreadSource(cast(CodexRpcClient, client))
@@ -46,6 +61,43 @@ async def test_list_translates_query_to_stable_codex_method() -> None:
             },
         )
     ]
+
+
+async def test_list_only_returns_threads_from_wiki_project() -> None:
+    client = FakeRpcClient()
+    client.result = {
+        "data": [
+            raw_thread("wiki-thread", WIKI_PROJECT_CWD),
+            raw_thread("other-thread", "/home/joshua/projects/fenb/study-api"),
+        ],
+        "nextCursor": "opaque",
+    }
+    source = CodexThreadSource(cast(CodexRpcClient, client))
+
+    page = await source.list(ListThreadsQuery())
+
+    assert [thread.id for thread in page.items] == ["wiki-thread"]
+    assert page.next_cursor == "opaque"
+
+
+async def test_list_skips_pages_without_wiki_threads() -> None:
+    client = FakeRpcClient()
+    client.results = [
+        {
+            "data": [raw_thread("other-thread", "/home/joshua/projects/fenb/study-api")],
+            "nextCursor": "next",
+        },
+        {
+            "data": [raw_thread("wiki-thread", WIKI_PROJECT_CWD)],
+            "nextCursor": None,
+        },
+    ]
+    source = CodexThreadSource(cast(CodexRpcClient, client))
+
+    page = await source.list(ListThreadsQuery())
+
+    assert [thread.id for thread in page.items] == ["wiki-thread"]
+    assert client.calls[1][1]["cursor"] == "next"
 
 
 @pytest.mark.parametrize(
