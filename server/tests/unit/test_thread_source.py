@@ -79,7 +79,13 @@ async def test_create_starts_thread_with_auto_review_then_starts_turn() -> None:
     assert submission.thread_id == "thread-1"
     assert submission.turn_id == "turn-1"
     assert client.calls == [
-        ("thread/start", {"approvalsReviewer": "auto_review"}),
+        (
+            "thread/start",
+            {
+                "approvalsReviewer": "auto_review",
+                "cwd": "/home/joshua/projects/private/wiki",
+            },
+        ),
         (
             "turn/start",
             {

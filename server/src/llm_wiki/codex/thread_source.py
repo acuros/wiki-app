@@ -10,6 +10,7 @@ from llm_wiki.domain.errors import DependencyProtocolError, ThreadBusy, ThreadNo
 from llm_wiki.domain.models import Conversation, Page, ThreadId, ThreadSummary, TurnSubmission
 
 AUTO_REVIEW = "auto_review"
+WIKI_PROJECT_CWD = "/home/joshua/projects/private/wiki"
 
 
 class CodexThreadSource:
@@ -57,7 +58,8 @@ class CodexThreadSource:
     async def create(self, message: str) -> TurnSubmission:
         try:
             start_result = await self._client.request(
-                "thread/start", {"approvalsReviewer": AUTO_REVIEW}
+                "thread/start",
+                {"approvalsReviewer": AUTO_REVIEW, "cwd": WIKI_PROJECT_CWD},
             )
             thread_id = map_thread_start_result(start_result)
             turn_result = await self._client.request(
