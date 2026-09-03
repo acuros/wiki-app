@@ -87,35 +87,75 @@ function referenceTypeLabel(content: ReferenceContent) {
 function ConversationEntry({ entry }: { entry: ThreadEntry }) {
   const isUser = entry.type === 'user_message';
   const isPlan = entry.type === 'plan';
+  const isProgress = entry.type === 'assistant_message' && entry.phase === 'commentary';
+  const isAnswer = entry.type === 'assistant_message' && entry.phase === 'final_answer';
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const content = entry.content.map((content, index) =>
+    content.type === 'text' ? (
+      <Text key={`${entry.id}-text-${index}`} style={[styles.message, isUser && styles.userText]}>
+        {content.text}
+      </Text>
+    ) : (
+      <View key={`${entry.id}-reference-${index}`} style={styles.referenceCard}>
+        <Text style={styles.referenceName}>{content.name || '이름 없는 첨부'}</Text>
+        <Text style={styles.referenceType}>{referenceTypeLabel(content)}</Text>
+        <Text numberOfLines={2} style={styles.referenceTarget}>
+          {content.target}
+        </Text>
+      </View>
+    ),
+  );
+
+  if (isProgress) {
+    return (
+      <View style={styles.progressEntry} testID="conversation-entry">
+        <Text style={styles.progressEntryLabel}>{entryLabel(entry)}</Text>
+        {content}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.entryRow, isUser && styles.userEntryRow]} testID="conversation-entry">
       <View style={[styles.bubble, isUser && styles.userBubble, isPlan && styles.planBubble]}>
         <Text style={[styles.entryLabel, isUser && styles.userText]}>{entryLabel(entry)}</Text>
-        {entry.content.map((content, index) =>
-          content.type === 'text' ? (
-            <Text
-              key={`${entry.id}-text-${index}`}
-              style={[styles.message, isUser && styles.userText]}
-            >
-              {content.text}
-            </Text>
-          ) : (
-            <View key={`${entry.id}-reference-${index}`} style={styles.referenceCard}>
-              <Text style={styles.referenceName}>{content.name || '이름 없는 첨부'}</Text>
-              <Text style={styles.referenceType}>{referenceTypeLabel(content)}</Text>
-              <Text numberOfLines={2} style={styles.referenceTarget}>
-                {content.target}
-              </Text>
-            </View>
-          ),
+        {isAnswer && !isExpanded ? (
+          <Pressable
+            accessibilityLabel="답변 펼치기"
+            accessibilityRole="button"
+            onPress={() => setIsExpanded(true)}
+            style={styles.answerToggle}
+          >
+            <Text style={styles.answerToggleText}>답변 보기</Text>
+          </Pressable>
+        ) : (
+          content
         )}
+        {isAnswer && isExpanded ? (
+          <Pressable
+            accessibilityLabel="답변 접기"
+            accessibilityRole="button"
+            onPress={() => setIsExpanded(false)}
+            style={styles.answerToggle}
+          >
+            <Text style={styles.answerToggleText}>답변 접기</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 }
 
-function Header({ onClose, title }: { onClose?: () => void; title: string }) {
+function Header({
+  onClose,
+  onSettingsPress,
+  title,
+}: {
+  onClose?: () => void;
+  onSettingsPress?: () => void;
+  title: string;
+}) {
   return (
     <View style={styles.header}>
       <Pressable
@@ -617,6 +657,15 @@ const styles = StyleSheet.create({
     borderColor: colors.primarySoft,
     backgroundColor: colors.primarySoft,
   },
+  progressEntry: {
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  progressEntryLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    letterSpacing: 0,
+  },
   entryLabel: {
     ...typography.caption,
     color: colors.primary,
@@ -625,6 +674,15 @@ const styles = StyleSheet.create({
   message: {
     ...typography.body,
     color: colors.text,
+  },
+  answerToggle: {
+    alignSelf: 'flex-start',
+    paddingVertical: 2,
+  },
+  answerToggleText: {
+    ...typography.caption,
+    color: colors.primary,
+    letterSpacing: 0,
   },
   userText: {
     color: colors.onPrimary,
