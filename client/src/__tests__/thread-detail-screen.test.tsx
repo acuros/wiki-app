@@ -151,7 +151,7 @@ describe('ThreadDetailScreen', () => {
     mockRouter.back.mockReset();
   });
 
-  it('renders progress as plain text and keeps answers collapsed until expanded', async () => {
+  it('keeps completed answers visible and progress collapsed until expanded', async () => {
     mockGetThread.mockResolvedValue(detail);
 
     const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
@@ -164,15 +164,14 @@ describe('ThreadDetailScreen', () => {
     expect(within(entries[0]).getByText('AGENTS.md')).toBeTruthy();
     expect(within(entries[0]).getByText('멘션')).toBeTruthy();
     expect(within(entries[0]).getByText('/workspace/AGENTS.md')).toBeTruthy();
-    expect(within(entries[1]).getByText('진행')).toBeTruthy();
-    expect(within(entries[1]).getByText('Assistant progress')).toBeTruthy();
+    expect(within(entries[1]).getByText('진행 보기')).toBeTruthy();
+    expect(within(entries[1]).queryByText('Assistant progress')).toBeNull();
     expect(within(entries[2]).getByText('답변')).toBeTruthy();
-    expect(within(entries[2]).getByText('답변 보기')).toBeTruthy();
-    expect(within(entries[2]).queryByText('Assistant answer')).toBeNull();
-    await fireEvent.press(within(entries[2]).getByRole('button', { name: '답변 펼치기' }));
     expect(within(entries[2]).getByText('Assistant answer')).toBeTruthy();
-    await fireEvent.press(within(entries[2]).getByRole('button', { name: '답변 접기' }));
-    expect(within(entries[2]).queryByText('Assistant answer')).toBeNull();
+    await fireEvent.press(within(entries[1]).getByRole('button', { name: '진행 펼치기' }));
+    expect(within(entries[1]).getByText('Assistant progress')).toBeTruthy();
+    await fireEvent.press(within(entries[1]).getByRole('button', { name: '진행 접기' }));
+    expect(within(entries[1]).queryByText('Assistant progress')).toBeNull();
     expect(within(entries[3]).getByText('계획')).toBeTruthy();
     expect(screen.queryByText('reasoning')).toBeNull();
 

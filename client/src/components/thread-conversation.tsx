@@ -35,6 +35,7 @@ const POLL_INTERVAL_MS = 1_500;
 type ConversationItem = {
   key: string;
   entry: ThreadEntry;
+  shouldCollapseProgress: boolean;
 };
 
 type ThreadConversationProps = {
@@ -84,11 +85,16 @@ function referenceTypeLabel(content: ReferenceContent) {
   return referenceLabels[content.reference_type] || content.reference_type;
 }
 
-function ConversationEntry({ entry }: { entry: ThreadEntry }) {
+function ConversationEntry({
+  entry,
+  shouldCollapseProgress,
+}: {
+  entry: ThreadEntry;
+  shouldCollapseProgress: boolean;
+}) {
   const isUser = entry.type === 'user_message';
   const isPlan = entry.type === 'plan';
   const isProgress = entry.type === 'assistant_message' && entry.phase === 'commentary';
-  const isAnswer = entry.type === 'assistant_message' && entry.phase === 'final_answer';
   const [isExpanded, setIsExpanded] = useState(false);
 
   const content = entry.content.map((content, index) =>
@@ -110,8 +116,31 @@ function ConversationEntry({ entry }: { entry: ThreadEntry }) {
   if (isProgress) {
     return (
       <View style={styles.progressEntry} testID="conversation-entry">
-        <Text style={styles.progressEntryLabel}>{entryLabel(entry)}</Text>
-        {content}
+        {shouldCollapseProgress && !isExpanded ? (
+          <Pressable
+            accessibilityLabel="진행 펼치기"
+            accessibilityRole="button"
+            onPress={() => setIsExpanded(true)}
+            style={styles.progressToggle}
+          >
+            <Text style={styles.progressToggleText}>진행 보기</Text>
+          </Pressable>
+        ) : (
+          <>
+            <Text style={styles.progressEntryLabel}>{entryLabel(entry)}</Text>
+            {content}
+            {shouldCollapseProgress ? (
+              <Pressable
+                accessibilityLabel="진행 접기"
+                accessibilityRole="button"
+                onPress={() => setIsExpanded(false)}
+                style={styles.progressToggle}
+              >
+                <Text style={styles.progressToggleText}>진행 접기</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
       </View>
     );
   }
@@ -120,28 +149,7 @@ function ConversationEntry({ entry }: { entry: ThreadEntry }) {
     <View style={[styles.entryRow, isUser && styles.userEntryRow]} testID="conversation-entry">
       <View style={[styles.bubble, isUser && styles.userBubble, isPlan && styles.planBubble]}>
         <Text style={[styles.entryLabel, isUser && styles.userText]}>{entryLabel(entry)}</Text>
-        {isAnswer && !isExpanded ? (
-          <Pressable
-            accessibilityLabel="답변 펼치기"
-            accessibilityRole="button"
-            onPress={() => setIsExpanded(true)}
-            style={styles.answerToggle}
-          >
-            <Text style={styles.answerToggleText}>답변 보기</Text>
-          </Pressable>
-        ) : (
-          content
-        )}
-        {isAnswer && isExpanded ? (
-          <Pressable
-            accessibilityLabel="답변 접기"
-            accessibilityRole="button"
-            onPress={() => setIsExpanded(false)}
-            style={styles.answerToggle}
-          >
-            <Text style={styles.answerToggleText}>답변 접기</Text>
-          </Pressable>
-        ) : null}
+        {content}
       </View>
     </View>
   );
@@ -358,6 +366,10 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
         turn.entries.map((entry) => ({
           key: `${turn.id}:${entry.id}`,
           entry,
+          shouldCollapseProgress: turn.entries.some(
+            (turnEntry) =>
+              turnEntry.type === 'assistant_message' && turnEntry.phase === 'final_answer',
+          ),
         })),
       ) ?? [],
     [query.data],
@@ -455,7 +467,12 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
           ListEmptyComponent={<Text style={styles.stateTitle}>{emptyMessage}</Text>}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ref={listRef}
-          renderItem={({ item }) => <ConversationEntry entry={item.entry} />}
+          renderItem={({ item }) => (
+            <ConversationEntry
+              entry={item.entry}
+              shouldCollapseProgress={item.shouldCollapseProgress}
+            />
+          )}
           testID="conversation-list"
         />
         <View style={styles.composer}>
@@ -666,6 +683,15 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     letterSpacing: 0,
   },
+  progressToggle: {
+    alignSelf: 'flex-start',
+    paddingVertical: 2,
+  },
+  progressToggleText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    letterSpacing: 0,
+  },
   entryLabel: {
     ...typography.caption,
     color: colors.primary,
@@ -674,15 +700,6 @@ const styles = StyleSheet.create({
   message: {
     ...typography.body,
     color: colors.text,
-  },
-  answerToggle: {
-    alignSelf: 'flex-start',
-    paddingVertical: 2,
-  },
-  answerToggleText: {
-    ...typography.caption,
-    color: colors.primary,
-    letterSpacing: 0,
   },
   userText: {
     color: colors.onPrimary,
