@@ -96,6 +96,11 @@ class MessageRequest(BaseModel):
     message: str
 
 
+class ThreadSettingsRequest(BaseModel):
+    model: Literal["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"] | None = None
+    effort: Literal["none", "low", "medium", "high", "xhigh"] | None = None
+
+
 class TurnSubmissionResponse(BaseModel):
     thread_id: str
     turn_id: str

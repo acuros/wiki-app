@@ -11,6 +11,7 @@ from llm_wiki.web.schemas import (
     MessageRequest,
     ThreadDetailResponse,
     ThreadListResponse,
+    ThreadSettingsRequest,
     TurnSubmissionResponse,
     thread_detail_response,
     thread_summary_response,
@@ -73,6 +74,23 @@ async def get_thread(
     service: Annotated[ThreadQueryService, Depends(_query_service)],
 ) -> ThreadDetailResponse:
     return thread_detail_response(await service.get_thread(ThreadId(thread_id)))
+
+
+@router.patch(
+    "/threads/{thread_id}/settings",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **ERROR_RESPONSES,
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
+async def update_thread_settings(
+    thread_id: str,
+    body: ThreadSettingsRequest,
+    service: Annotated[ThreadCommandService, Depends(_command_service)],
+) -> None:
+    await service.update_settings(ThreadId(thread_id), model=body.model, effort=body.effort)
 
 
 @router.post(

@@ -119,3 +119,16 @@ export function sendMessage(threadId: string, message: string): Promise<TurnSubm
     MESSAGE_TIMEOUT_MS,
   );
 }
+
+export type ThreadModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+
+export function updateThreadSettings(
+  threadId: string,
+  settings: { model?: ThreadModel; effort?: ReasoningEffort },
+): Promise<void> {
+  return fetchJson<void>(`/api/v1/threads/${encodeURIComponent(threadId)}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+}

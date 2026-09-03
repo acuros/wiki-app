@@ -20,6 +20,11 @@ class FakeSource:
         self.calls.append(("send", thread_id, message))
         return TurnSubmission(thread_id, "turn-2", "in_progress")
 
+    async def update_settings(
+        self, thread_id: ThreadId, *, model: str | None = None, effort: str | None = None
+    ) -> None:
+        self.calls.append(("update_settings", thread_id, {"model": model, "effort": effort}))
+
 
 async def test_creates_thread_and_sends_message_without_changing_text() -> None:
     source = FakeSource()
@@ -49,3 +54,27 @@ async def test_rejects_empty_thread_id() -> None:
 
     with pytest.raises(InvalidThreadQuery):
         await service.send_message(ThreadId(""), "message")
+
+
+async def test_updates_only_supported_thread_settings() -> None:
+    source = FakeSource()
+    service = ThreadCommandService(cast(ThreadSource, source))
+
+    await service.update_settings(ThreadId("thread-1"), model="gpt-5.6-sol", effort="xhigh")
+
+    assert source.calls == [
+        ("update_settings", ThreadId("thread-1"), {"model": "gpt-5.6-sol", "effort": "xhigh"})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("model", "effort"),
+    [("gpt-5.6", None), (None, "max"), (None, None)],
+)
+async def test_rejects_unsupported_or_missing_thread_settings(
+    model: str | None, effort: str | None
+) -> None:
+    service = ThreadCommandService(cast(ThreadSource, FakeSource()))
+
+    with pytest.raises(InvalidThreadQuery):
+        await service.update_settings(ThreadId("thread-1"), model=model, effort=effort)

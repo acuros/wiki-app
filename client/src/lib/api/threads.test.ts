@@ -1,5 +1,5 @@
 import { ApiError, fetchJson } from './client';
-import { createThread, getThread, getThreads, sendMessage } from './threads';
+import { createThread, getThread, getThreads, sendMessage, updateThreadSettings } from './threads';
 
 jest.mock('./client', () => {
   const actual = jest.requireActual('./client');
@@ -65,6 +65,17 @@ describe('thread API', () => {
       { method: 'POST', body: JSON.stringify({ message: 'follow up' }) },
       65_000,
     );
+  });
+
+  it('updates the selected thread settings', async () => {
+    mockFetchJson.mockResolvedValue(undefined);
+
+    await updateThreadSettings('thread/id', { model: 'gpt-5.6-sol', effort: 'xhigh' });
+
+    expect(mockFetchJson).toHaveBeenCalledWith('/api/v1/threads/thread%2Fid/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ model: 'gpt-5.6-sol', effort: 'xhigh' }),
+    });
   });
 
   it('preserves API errors', async () => {

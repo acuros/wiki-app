@@ -6,7 +6,7 @@ import { PropsWithChildren } from 'react';
 import ThreadDetailScreen from '@/app/threads/[threadId]';
 import { ApiError } from '@/lib/api/client';
 import { TranscriptionError, transcribeRecording } from '@/lib/api/transcriptions';
-import { getThread, sendMessage, TurnSubmission } from '@/lib/api/threads';
+import { getThread, sendMessage, TurnSubmission, updateThreadSettings } from '@/lib/api/threads';
 
 jest.mock('expo-router', () => ({
   router: {
@@ -20,6 +20,7 @@ jest.mock('@/lib/api/threads', () => ({
   createThread: jest.fn(),
   getThread: jest.fn(),
   sendMessage: jest.fn(),
+  updateThreadSettings: jest.fn(),
 }));
 
 jest.mock('@/lib/api/transcriptions', () => ({
@@ -36,6 +37,9 @@ jest.mock('@/lib/api/transcriptions', () => ({
 
 const mockGetThread = getThread as jest.MockedFunction<typeof getThread>;
 const mockSendMessage = sendMessage as jest.MockedFunction<typeof sendMessage>;
+const mockUpdateThreadSettings = updateThreadSettings as jest.MockedFunction<
+  typeof updateThreadSettings
+>;
 const mockTranscribeRecording = transcribeRecording as jest.MockedFunction<
   typeof transcribeRecording
 >;
@@ -128,6 +132,8 @@ describe('ThreadDetailScreen', () => {
   beforeEach(() => {
     mockGetThread.mockReset();
     mockSendMessage.mockReset();
+    mockUpdateThreadSettings.mockReset();
+    mockUpdateThreadSettings.mockResolvedValue(undefined);
     mockTranscribeRecording.mockReset();
     mockRequestRecordingPermissions.mockReset();
     mockRequestRecordingPermissions.mockResolvedValue({ granted: true } as never);
@@ -179,6 +185,27 @@ describe('ThreadDetailScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('제목 없는 스레드')).toBeTruthy();
     expect(screen.getByText('표시할 대화가 없습니다.')).toBeTruthy();
+  });
+
+  it('updates the thread model and reasoning from the settings menu', async () => {
+    mockGetThread.mockResolvedValue(detail);
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    await screen.findByText('Thread title');
+
+    await fireEvent.press(screen.getByRole('button', { name: '스레드 설정' }));
+    await fireEvent.press(screen.getByText('모델'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Sol' }));
+    await waitFor(() =>
+      expect(mockUpdateThreadSettings).toHaveBeenCalledWith('thread-1', { model: 'gpt-5.6-sol' }),
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: '스레드 설정' }));
+    await fireEvent.press(screen.getByText('Reasoning'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Extra high' }));
+    await waitFor(() =>
+      expect(mockUpdateThreadSettings).toHaveBeenCalledWith('thread-1', { effort: 'xhigh' }),
+    );
   });
 
   it('sends a message, clears the draft, and refreshes the conversation', async () => {

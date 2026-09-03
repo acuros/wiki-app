@@ -174,6 +174,20 @@ async def test_send_resumes_with_auto_review_then_starts_turn() -> None:
     ]
 
 
+async def test_updates_thread_settings_with_codex_setting_names() -> None:
+    client = FakeRpcClient()
+    source = CodexThreadSource(cast(CodexRpcClient, client))
+
+    await source.update_settings(ThreadId("thread-1"), model="gpt-5.6-sol", effort="xhigh")
+
+    assert client.calls == [
+        (
+            "thread/settings/update",
+            {"threadId": "thread-1", "model": "gpt-5.6-sol", "effort": "xhigh"},
+        )
+    ]
+
+
 @pytest.mark.parametrize(
     ("message", "expected"),
     [

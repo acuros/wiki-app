@@ -102,6 +102,23 @@ class CodexThreadSource:
             raise DependencyProtocolError("Codex rejected message submission") from exc
         return map_turn_start_result(thread_id, turn_result)
 
+    async def update_settings(
+        self, thread_id: ThreadId, *, model: str | None = None, effort: str | None = None
+    ) -> None:
+        try:
+            params: dict[str, object] = {"threadId": str(thread_id)}
+            if model is not None:
+                params["model"] = model
+            if effort is not None:
+                params["effort"] = effort
+            await self._client.request("thread/settings/update", params)
+        except RpcRemoteError as exc:
+            if _is_not_found(exc):
+                raise ThreadNotFound("Thread not found") from exc
+            if _is_busy(exc):
+                raise ThreadBusy("Thread already has an active turn") from exc
+            raise DependencyProtocolError("Codex rejected thread settings update") from exc
+
 
 def _is_not_found(error: RpcRemoteError) -> bool:
     message = error.message.casefold()

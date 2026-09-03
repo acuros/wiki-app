@@ -20,10 +20,13 @@ import { ApiError } from '@/lib/api/client';
 import {
   createThread,
   getThread,
+  ReasoningEffort,
   ReferenceContent,
   sendMessage,
   ThreadDetail,
   ThreadEntry,
+  ThreadModel,
+  updateThreadSettings,
 } from '@/lib/api/threads';
 import { colors, spacing, typography } from '@/theme/tokens';
 
@@ -38,6 +41,22 @@ type ThreadConversationProps = {
   threadId?: string;
   onClose?: () => void;
 };
+
+type SettingsMenu = 'root' | 'model' | 'reasoning' | null;
+
+const modelOptions: { label: string; value: ThreadModel }[] = [
+  { label: 'Luna', value: 'gpt-5.6-luna' },
+  { label: 'Terra', value: 'gpt-5.6-terra' },
+  { label: 'Sol', value: 'gpt-5.6-sol' },
+];
+
+const reasoningOptions: { label: string; value: ReasoningEffort }[] = [
+  { label: 'None', value: 'none' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+  { label: 'Extra high', value: 'xhigh' },
+];
 
 const referenceLabels: Record<string, string> = {
   image: '이미지',
@@ -111,7 +130,101 @@ function Header({ onClose, title }: { onClose?: () => void; title: string }) {
       <Text numberOfLines={1} style={styles.headerTitle}>
         {title}
       </Text>
-      <View style={styles.headerSpacer} />
+      {onSettingsPress ? (
+        <Pressable
+          accessibilityLabel="스레드 설정"
+          accessibilityRole="button"
+          hitSlop={12}
+          onPress={onSettingsPress}
+          style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.settingsIcon}>⋯</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.headerSpacer} />
+      )}
+    </View>
+  );
+}
+
+function SettingsMenuPanel({
+  error,
+  menu,
+  onClose,
+  onSelect,
+}: {
+  error: string | null;
+  menu: SettingsMenu;
+  onClose: () => void;
+  onSelect: (settings: { model?: ThreadModel; effort?: ReasoningEffort }) => void;
+}) {
+  if (!menu) {
+    return null;
+  }
+
+  const options =
+    menu === 'model'
+      ? modelOptions.map((option) => ({
+          ...option,
+          onPress: () => onSelect({ model: option.value }),
+        }))
+      : menu === 'reasoning'
+        ? reasoningOptions.map((option) => ({
+            ...option,
+            onPress: () => onSelect({ effort: option.value }),
+          }))
+        : [];
+
+  return (
+    <View accessibilityViewIsModal style={styles.settingsMenu}>
+      {menu === 'root' ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onSelect({})}
+            style={styles.menuItem}
+          >
+            <Text style={styles.menuItemText}>모델</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onSelect({ effort: undefined })}
+            style={styles.menuItem}
+          >
+            <Text style={styles.menuItemText}>Reasoning</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onSelect({ model: undefined })}
+            style={styles.menuBackItem}
+          >
+            <Text style={styles.menuBackText}>‹ 설정</Text>
+          </Pressable>
+          {options.map((option) => (
+            <Pressable
+              accessibilityLabel={option.label}
+              accessibilityRole="button"
+              key={option.value}
+              onPress={option.onPress}
+              style={styles.menuItem}
+            >
+              <Text style={styles.menuItemText}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </>
+      )}
+      {error ? <Text style={styles.settingsError}>{error}</Text> : null}
+      <Pressable
+        accessibilityLabel="설정 메뉴 닫기"
+        accessibilityRole="button"
+        onPress={onClose}
+        style={styles.menuClose}
+      >
+        <Text style={styles.menuCloseText}>닫기</Text>
+      </Pressable>
     </View>
   );
 }
@@ -160,6 +273,8 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
   const [draft, setDraft] = useState('');
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceInputState>('idle');
+  const [settingsMenu, setSettingsMenu] = useState<SettingsMenu>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ['thread', activeThreadId],
     queryFn: () => getThread(activeThreadId || ''),
@@ -186,6 +301,15 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     onSettled: () => {
       submissionInFlightRef.current = false;
     },
+  });
+  const settingsMutation = useMutation({
+    mutationFn: (settings: { model?: ThreadModel; effort?: ReasoningEffort }) =>
+      updateThreadSettings(activeThreadId || '', settings),
+    onSuccess: () => {
+      setSettingsMenu(null);
+      setSettingsError(null);
+    },
+    onError: () => setSettingsError('설정을 변경하지 못했습니다. 다시 시도해주세요.'),
   });
 
   const items = useMemo<ConversationItem[]>(
@@ -249,10 +373,34 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     setDraft((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${text}`);
   };
   const composerDisabled = isActive || isSubmitting || isUsingVoice;
+  const selectSettings = (settings: { model?: ThreadModel; effort?: ReasoningEffort }) => {
+    if ('model' in settings && settings.model === undefined) {
+      setSettingsMenu('root');
+      return;
+    }
+    if ('effort' in settings && settings.effort === undefined) {
+      setSettingsMenu('reasoning');
+      return;
+    }
+    if (!settings.model && !settings.effort) {
+      setSettingsMenu('model');
+      return;
+    }
+    settingsMutation.mutate(settings);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Header onClose={onClose} title={title} />
+      <Header onClose={onClose} onSettingsPress={() => setSettingsMenu('root')} title={title} />
+      <SettingsMenuPanel
+        error={settingsError}
+        menu={settingsMenu}
+        onClose={() => {
+          setSettingsMenu(null);
+          setSettingsError(null);
+        }}
+        onSelect={selectSettings}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoidingView}
@@ -367,6 +515,72 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsIcon: {
+    color: colors.primary,
+    fontSize: 27,
+    lineHeight: 27,
+    marginTop: -8,
+  },
+  settingsMenu: {
+    position: 'absolute',
+    zIndex: 10,
+    top: 56,
+    right: spacing.sm,
+    minWidth: 180,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  menuItemText: {
+    ...typography.body,
+    color: colors.text,
+  },
+  menuBackItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  menuBackText: {
+    ...typography.caption,
+    color: colors.primary,
+    letterSpacing: 0,
+  },
+  menuClose: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  menuCloseText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    letterSpacing: 0,
+  },
+  settingsError: {
+    ...typography.caption,
+    color: colors.danger,
+    letterSpacing: 0,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   conversation: {
     flexGrow: 1,

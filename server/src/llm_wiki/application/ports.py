@@ -23,6 +23,10 @@ class ThreadSource(Protocol):
 
     async def send(self, thread_id: ThreadId, message: str) -> TurnSubmission: ...
 
+    async def update_settings(
+        self, thread_id: ThreadId, *, model: str | None = None, effort: str | None = None
+    ) -> None: ...
+
 
 class ReadinessProbe(Protocol):
     @property

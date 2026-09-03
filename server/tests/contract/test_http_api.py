@@ -100,6 +100,13 @@ class FakeSource:
         self.calls.append(("send", thread_id, message))
         return TurnSubmission(thread_id, "turn-next", "in_progress")
 
+    async def update_settings(
+        self, thread_id: ThreadId, *, model: str | None = None, effort: str | None = None
+    ) -> None:
+        if self.error:
+            raise self.error
+        self.calls.append(("update_settings", thread_id, {"model": model, "effort": effort}))
+
 
 async def client_for(source: FakeSource) -> httpx.AsyncClient:
     app = create_app(Settings(allowed_tailscale_users="allowed@example.com"), source)
@@ -182,6 +189,26 @@ async def test_create_and_send_message_contract() -> None:
     assert source.calls == [
         ("create", "first", None),
         ("send", "thread-1", "next"),
+    ]
+
+
+async def test_update_thread_settings_contract() -> None:
+    source = FakeSource()
+    headers = {"Tailscale-User-Login": "allowed@example.com"}
+    async with await client_for(source) as client:
+        response = await client.patch(
+            "/api/v1/threads/thread-1/settings",
+            json={"model": "gpt-5.6-terra", "effort": "high"},
+            headers=headers,
+        )
+
+    assert response.status_code == 204
+    assert source.calls == [
+        (
+            "update_settings",
+            ThreadId("thread-1"),
+            {"model": "gpt-5.6-terra", "effort": "high"},
+        )
     ]
 
 
