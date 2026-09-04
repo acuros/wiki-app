@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -31,6 +33,7 @@ import {
 import { colors, spacing, typography } from '@/theme/tokens';
 
 const POLL_INTERVAL_MS = 1_500;
+const BOTTOM_THRESHOLD_PX = 48;
 
 type ConversationItem = {
   key: string;
@@ -317,6 +320,8 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
   const isNew = activeThreadId === undefined;
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList<ConversationItem>>(null);
+  const didInitialScrollRef = useRef(false);
+  const isNearBottomRef = useRef(true);
   const submissionInFlightRef = useRef(false);
   const [draft, setDraft] = useState('');
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -440,6 +445,23 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     }
     settingsMutation.mutate(settings);
   };
+  const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const distanceFromBottom =
+      nativeEvent.contentSize.height -
+      nativeEvent.layoutMeasurement.height -
+      nativeEvent.contentOffset.y;
+    isNearBottomRef.current = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+  };
+  const handleContentSizeChange = () => {
+    if (!didInitialScrollRef.current) {
+      didInitialScrollRef.current = true;
+      listRef.current?.scrollToEnd({ animated: false });
+      return;
+    }
+    if (isNearBottomRef.current) {
+      listRef.current?.scrollToEnd({ animated: true });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -465,7 +487,8 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
           data={items}
           keyExtractor={(item) => item.key}
           ListEmptyComponent={<Text style={styles.stateTitle}>{emptyMessage}</Text>}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          onContentSizeChange={handleContentSizeChange}
+          onScroll={handleScroll}
           ref={listRef}
           renderItem={({ item }) => (
             <ConversationEntry
@@ -473,6 +496,7 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
               shouldCollapseProgress={item.shouldCollapseProgress}
             />
           )}
+          scrollEventThrottle={16}
           testID="conversation-list"
         />
         <View style={styles.composer}>

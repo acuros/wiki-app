@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { PropsWithChildren } from 'react';
+import { FlatList } from 'react-native';
 
 import ThreadDetailScreen from '@/app/threads/[threadId]';
 import { ApiError } from '@/lib/api/client';
@@ -177,6 +178,41 @@ describe('ThreadDetailScreen', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '뒤로가기' }));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts at the latest message and follows updates only while near the bottom', async () => {
+    const scrollToEnd = jest.spyOn(FlatList.prototype, 'scrollToEnd');
+    mockGetThread.mockResolvedValue(detail);
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    await screen.findByText('Thread title');
+    const list = screen.getByTestId('conversation-list');
+
+    await fireEvent(list, 'contentSizeChange', 320, 800);
+    expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
+
+    await fireEvent.scroll(list, {
+      nativeEvent: {
+        contentOffset: { x: 0, y: 390 },
+        contentSize: { width: 320, height: 800 },
+        layoutMeasurement: { width: 320, height: 400 },
+      },
+    });
+    await fireEvent(list, 'contentSizeChange', 320, 840);
+    expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: true });
+
+    await fireEvent.scroll(list, {
+      nativeEvent: {
+        contentOffset: { x: 0, y: 200 },
+        contentSize: { width: 320, height: 840 },
+        layoutMeasurement: { width: 320, height: 400 },
+      },
+    });
+    const callCount = scrollToEnd.mock.calls.length;
+    await fireEvent(list, 'contentSizeChange', 320, 880);
+    expect(scrollToEnd).toHaveBeenCalledTimes(callCount);
+
+    scrollToEnd.mockRestore();
   });
 
   it('shows a not-found error and retries', async () => {
