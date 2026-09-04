@@ -67,6 +67,9 @@ describe('HomeScreen', () => {
     expect(screen.getByText('+')).toBeTruthy();
     expect(screen.queryByText('not_loaded')).toBeNull();
 
+    await fireEvent.press(screen.getByRole('button', { name: '설정 열기' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+
     await fireEvent.press(screen.getByRole('button', { name: '스레드 열기: Thread title' }));
     expect(mockRouter.push).toHaveBeenCalledWith({
       pathname: './threads/[threadId]',

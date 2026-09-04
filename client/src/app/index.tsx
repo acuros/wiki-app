@@ -92,7 +92,13 @@ function InitialState({ error, retry }: { error: boolean; retry: () => void }) {
   );
 }
 
-function HomeHeader({ onNewThread }: { onNewThread: () => void }) {
+function HomeHeader({
+  onNewThread,
+  onSettings,
+}: {
+  onNewThread: () => void;
+  onSettings: () => void;
+}) {
   return (
     <View style={styles.header}>
       <View style={styles.headerTitleRow}>
@@ -100,14 +106,24 @@ function HomeHeader({ onNewThread }: { onNewThread: () => void }) {
           <Text style={styles.eyebrow}>WIKI APP</Text>
           <Text style={styles.title}>Threads</Text>
         </View>
-        <Pressable
-          accessibilityLabel="새 Thread 시작하기"
-          accessibilityRole="button"
-          onPress={onNewThread}
-          style={({ pressed }) => [styles.newThreadButton, pressed && styles.cardPressed]}
-        >
-          <Text style={styles.newThreadButtonText}>+</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="설정 열기"
+            accessibilityRole="button"
+            onPress={onSettings}
+            style={({ pressed }) => [styles.settingsButton, pressed && styles.cardPressed]}
+          >
+            <Text style={styles.settingsButtonText}>⚙</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="새 Thread 시작하기"
+            accessibilityRole="button"
+            onPress={onNewThread}
+            style={({ pressed }) => [styles.newThreadButton, pressed && styles.cardPressed]}
+          >
+            <Text style={styles.newThreadButtonText}>+</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -171,7 +187,10 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.initialHeader}>
-          <HomeHeader onNewThread={() => setIsCreatingThread(true)} />
+          <HomeHeader
+            onNewThread={() => setIsCreatingThread(true)}
+            onSettings={() => router.push('/settings')}
+          />
         </View>
         <InitialState error={query.isError} retry={retry} />
       </SafeAreaView>
@@ -204,7 +223,12 @@ export default function HomeScreen() {
             </View>
           ) : null
         }
-        ListHeaderComponent={<HomeHeader onNewThread={() => setIsCreatingThread(true)} />}
+        ListHeaderComponent={
+          <HomeHeader
+            onNewThread={() => setIsCreatingThread(true)}
+            onSettings={() => router.push('/settings')}
+          />
+        }
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.5}
         refreshControl={
@@ -249,6 +273,25 @@ const styles = StyleSheet.create({
   headerCopy: {
     flex: 1,
     gap: spacing.sm,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+  },
+  settingsButtonText: {
+    fontSize: 20,
+    lineHeight: 24,
+    color: colors.text,
   },
   newThreadButton: {
     width: 40,
