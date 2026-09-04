@@ -190,6 +190,10 @@ describe('ThreadDetailScreen', () => {
 
     await fireEvent(list, 'contentSizeChange', 320, 800);
     expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
+    await fireEvent(list, 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 400 } },
+    });
+    expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
 
     await fireEvent.scroll(list, {
       nativeEvent: {
@@ -209,6 +213,9 @@ describe('ThreadDetailScreen', () => {
       },
     });
     const callCount = scrollToEnd.mock.calls.length;
+    await fireEvent(list, 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 360 } },
+    });
     await fireEvent(list, 'contentSizeChange', 320, 880);
     expect(scrollToEnd).toHaveBeenCalledTimes(callCount);
 

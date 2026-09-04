@@ -496,6 +496,11 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
       listRef.current?.scrollToEnd({ animated: true });
     }
   };
+  const handleListLayout = () => {
+    if (didInitialScrollRef.current && isNearBottomRef.current) {
+      listRef.current?.scrollToEnd({ animated: false });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -522,6 +527,7 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
           keyExtractor={(item) => item.key}
           ListEmptyComponent={<Text style={styles.stateTitle}>{emptyMessage}</Text>}
           onContentSizeChange={handleContentSizeChange}
+          onLayout={handleListLayout}
           onScroll={handleScroll}
           ref={listRef}
           renderItem={({ item }) => (
@@ -531,6 +537,7 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
             />
           )}
           scrollEventThrottle={16}
+          style={styles.conversationList}
           testID="conversation-list"
         />
         <View style={styles.composer}>
@@ -705,6 +712,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: spacing.md,
     padding: spacing.md,
+  },
+  conversationList: {
+    flex: 1,
   },
   emptyConversation: {
     justifyContent: 'center',
