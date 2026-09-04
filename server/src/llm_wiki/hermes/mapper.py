@@ -19,6 +19,7 @@ from llm_wiki.domain.models import (
 from llm_wiki.hermes.run_tracker import TrackedRun
 
 JsonObject = Mapping[str, Any]
+PERSISTED_MESSAGE_MATCH_WINDOW_SECONDS = 60
 
 
 def _invalid() -> Never:
@@ -106,8 +107,24 @@ def map_conversation(
         _map_turn(group, index, active=active and index == len(groups) - 1)
         for index, group in enumerate(groups)
     ]
-    turns.extend(_overlay_turn(run) for run in overlays)
+    turns.extend(
+        _overlay_turn(run, include_user=not _has_persisted_user_message(messages, run))
+        for run in overlays
+    )
     return Conversation(summary=summary, turns=tuple(turns))
+
+
+def _has_persisted_user_message(
+    messages: Sequence[dict[str, Any]], run: TrackedRun
+) -> bool:
+    for message in messages:
+        if message.get("role") != "user" or message.get("content") != run.user_message:
+            continue
+        timestamp = message.get("timestamp")
+        if isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool):
+            if abs(timestamp - run.created_at) <= PERSISTED_MESSAGE_MATCH_WINDOW_SECONDS:
+                return True
+    return False
 
 
 def _map_turn(messages: list[dict[str, Any]], index: int, *, active: bool) -> Turn:
@@ -174,11 +191,11 @@ def _map_turn(messages: list[dict[str, Any]], index: int, *, active: bool) -> Tu
     )
 
 
-def _overlay_turn(run: TrackedRun) -> Turn:
+def _overlay_turn(run: TrackedRun, *, include_user: bool) -> Turn:
     started_at = datetime.fromtimestamp(run.created_at, UTC)
-    entries: list[ConversationEntry] = [
-        UserMessage(f"{run.run_id}-user", (TextContent(run.user_message),))
-    ]
+    entries: list[ConversationEntry] = []
+    if include_user:
+        entries.append(UserMessage(f"{run.run_id}-user", (TextContent(run.user_message),)))
     entries.extend(
         AssistantMessage(
             f"{run.run_id}-commentary-{index}",

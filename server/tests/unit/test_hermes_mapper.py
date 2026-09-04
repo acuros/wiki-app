@@ -1,5 +1,6 @@
 from llm_wiki.domain.models import AssistantMessage, AssistantPhase, UserMessage
 from llm_wiki.hermes.mapper import map_conversation, map_summary
+from llm_wiki.hermes.run_tracker import TrackedRun
 
 
 def raw_session(*, active: bool = False) -> dict[str, object]:
@@ -55,3 +56,44 @@ def test_conversation_groups_messages_and_keeps_only_last_answer_final() -> None
     ]
     assert turn.omitted_item_types == ("tool",)
     assert "secret args" not in repr(turn.entries)
+
+
+def test_conversation_does_not_repeat_a_tracked_user_message_after_it_is_persisted() -> None:
+    messages = [
+        {"id": "u1", "role": "user", "content": "hello", "timestamp": 1_700_000_001.0},
+    ]
+    run = TrackedRun(
+        run_id="run-1",
+        session_id="session-1",
+        user_message="hello",
+        created_at=1_700_000_001.5,
+        status="running",
+        commentary=["searching"],
+    )
+
+    conversation = map_conversation(raw_session(), messages, [run])
+    entries = [entry for turn in conversation.turns for entry in turn.entries]
+
+    assert sum(isinstance(entry, UserMessage) for entry in entries) == 1
+    assert any(
+        isinstance(entry, AssistantMessage) and entry.content[0].text == "searching"
+        for entry in entries
+    )
+
+
+def test_conversation_keeps_overlay_user_when_matching_history_is_old() -> None:
+    messages = [
+        {"id": "u1", "role": "user", "content": "hello", "timestamp": 1_700_000_001.0},
+    ]
+    run = TrackedRun(
+        run_id="run-1",
+        session_id="session-1",
+        user_message="hello",
+        created_at=1_700_001_001.0,
+        status="running",
+    )
+
+    conversation = map_conversation(raw_session(), messages, [run])
+    entries = [entry for turn in conversation.turns for entry in turn.entries]
+
+    assert sum(isinstance(entry, UserMessage) for entry in entries) == 2
