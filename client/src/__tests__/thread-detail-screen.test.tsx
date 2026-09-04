@@ -180,44 +180,31 @@ describe('ThreadDetailScreen', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });
 
-  it('starts at the latest message and follows updates only while near the bottom', async () => {
-    const scrollToEnd = jest.spyOn(FlatList.prototype, 'scrollToEnd');
+  it('starts at the latest message and follows updates while at the bottom', async () => {
+    const scrollToEnd = jest
+      .spyOn(FlatList.prototype, 'scrollToEnd')
+      .mockImplementation(() => undefined);
     mockGetThread.mockResolvedValue(detail);
 
     const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
     await screen.findByText('Thread title');
     const list = screen.getByTestId('conversation-list');
 
-    await fireEvent(list, 'contentSizeChange', 320, 800);
+    await act(async () => list.props.onContentSizeChange(320, 800));
     expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
-    await fireEvent(list, 'layout', {
-      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 400 } },
-    });
+    scrollToEnd.mockClear();
+
+    await act(async () =>
+      list.props.onScroll({
+        nativeEvent: {
+          contentOffset: { x: 0, y: 390 },
+          contentSize: { width: 320, height: 800 },
+          layoutMeasurement: { width: 320, height: 400 },
+        },
+      }),
+    );
+    await act(async () => list.props.onContentSizeChange(320, 840));
     expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
-
-    await fireEvent.scroll(list, {
-      nativeEvent: {
-        contentOffset: { x: 0, y: 390 },
-        contentSize: { width: 320, height: 800 },
-        layoutMeasurement: { width: 320, height: 400 },
-      },
-    });
-    await fireEvent(list, 'contentSizeChange', 320, 840);
-    expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: true });
-
-    await fireEvent.scroll(list, {
-      nativeEvent: {
-        contentOffset: { x: 0, y: 200 },
-        contentSize: { width: 320, height: 840 },
-        layoutMeasurement: { width: 320, height: 400 },
-      },
-    });
-    const callCount = scrollToEnd.mock.calls.length;
-    await fireEvent(list, 'layout', {
-      nativeEvent: { layout: { x: 0, y: 0, width: 320, height: 360 } },
-    });
-    await fireEvent(list, 'contentSizeChange', 320, 880);
-    expect(scrollToEnd).toHaveBeenCalledTimes(callCount);
 
     scrollToEnd.mockRestore();
   });

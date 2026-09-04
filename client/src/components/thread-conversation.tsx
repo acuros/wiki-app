@@ -325,6 +325,8 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const didInitialScrollRef = useRef(false);
+  const hasContentSizeRef = useRef(false);
+  const hasListLayoutRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const submissionInFlightRef = useRef(false);
   const draftRef = useRef('');
@@ -480,23 +482,35 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     settingsMutation.mutate(settings);
   };
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!didInitialScrollRef.current) return;
+
     const distanceFromBottom =
       nativeEvent.contentSize.height -
       nativeEvent.layoutMeasurement.height -
       nativeEvent.contentOffset.y;
     isNearBottomRef.current = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
   };
-  const handleContentSizeChange = () => {
-    if (!didInitialScrollRef.current) {
-      didInitialScrollRef.current = true;
-      listRef.current?.scrollToEnd({ animated: false });
-      return;
+  const scrollToLatestInitially = () => {
+    if (didInitialScrollRef.current || !hasContentSizeRef.current || !hasListLayoutRef.current) {
+      return false;
     }
+    didInitialScrollRef.current = true;
+    isNearBottomRef.current = true;
+    listRef.current?.scrollToEnd({ animated: false });
+    return true;
+  };
+  const handleContentSizeChange = () => {
+    hasContentSizeRef.current = true;
+    if (scrollToLatestInitially()) return;
+
     if (isNearBottomRef.current) {
-      listRef.current?.scrollToEnd({ animated: true });
+      listRef.current?.scrollToEnd({ animated: false });
     }
   };
   const handleListLayout = () => {
+    hasListLayoutRef.current = true;
+    if (scrollToLatestInitially()) return;
+
     if (didInitialScrollRef.current && isNearBottomRef.current) {
       listRef.current?.scrollToEnd({ animated: false });
     }
