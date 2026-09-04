@@ -7,6 +7,7 @@ from llm_wiki.bootstrap import create_app
 from llm_wiki.config import Settings
 from llm_wiki.domain.errors import (
     DependencyProtocolError,
+    DependencyRateLimited,
     DependencyTimeout,
     DependencyUnavailable,
     ThreadBusy,
@@ -241,6 +242,7 @@ async def test_dependency_errors_are_sanitized() -> None:
     cases = [
         (DependencyUnavailable("secret raw payload"), 503, "dependency_unavailable"),
         (DependencyTimeout("secret raw payload"), 504, "dependency_timeout"),
+        (DependencyRateLimited("secret raw payload"), 429, "dependency_rate_limited"),
         (DependencyProtocolError("secret raw payload"), 502, "dependency_protocol_error"),
         (ThreadNotFound("secret raw payload"), 404, "thread_not_found"),
         (ThreadBusy("secret raw payload"), 409, "thread_busy"),

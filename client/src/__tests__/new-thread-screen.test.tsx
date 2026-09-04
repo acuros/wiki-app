@@ -102,7 +102,7 @@ describe('NewThreadScreen', () => {
     );
     await fireEvent.press(sendButton);
 
-    expect(await screen.findByText('Codex에 연결할 수 없습니다.')).toBeTruthy();
+    expect(await screen.findByText('Hermes에 연결할 수 없습니다.')).toBeTruthy();
     expect(screen.getByLabelText('메시지 입력').props.value).toBe('Keep this');
     expect(mockRouter.back).not.toHaveBeenCalled();
   });

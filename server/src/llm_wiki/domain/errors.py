@@ -26,5 +26,9 @@ class DependencyTimeout(ApplicationError):
     pass
 
 
+class DependencyRateLimited(ApplicationError):
+    pass
+
+
 class DependencyProtocolError(ApplicationError):
     pass

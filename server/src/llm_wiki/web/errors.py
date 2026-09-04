@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from llm_wiki.domain.errors import (
     DependencyProtocolError,
+    DependencyRateLimited,
     DependencyTimeout,
     DependencyUnavailable,
     InvalidMessage,
@@ -72,6 +73,17 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DependencyTimeout)
     async def handle_timeout(request: Request, _exc: DependencyTimeout) -> JSONResponse:
         return _response(request, 504, "dependency_timeout", "The conversation source timed out.")
+
+    @app.exception_handler(DependencyRateLimited)
+    async def handle_rate_limited(
+        request: Request, _exc: DependencyRateLimited
+    ) -> JSONResponse:
+        return _response(
+            request,
+            429,
+            "dependency_rate_limited",
+            "The conversation source is busy. Try again shortly.",
+        )
 
     @app.exception_handler(DependencyProtocolError)
     async def handle_protocol(request: Request, _exc: DependencyProtocolError) -> JSONResponse:

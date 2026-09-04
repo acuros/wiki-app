@@ -7,6 +7,7 @@ ThreadId = NewType("ThreadId", str)
 
 
 class ThreadSourceKind(StrEnum):
+    HERMES = "hermes"
     APP_SERVER = "app_server"
     CLI = "cli"
     VSCODE = "vscode"

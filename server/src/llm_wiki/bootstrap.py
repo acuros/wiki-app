@@ -11,9 +11,9 @@ from fastapi.responses import JSONResponse
 from llm_wiki.application.ports import ThreadSource
 from llm_wiki.application.thread_commands import ThreadCommandService
 from llm_wiki.application.thread_queries import ThreadQueryService
-from llm_wiki.codex.rpc_client import CodexRpcClient
-from llm_wiki.codex.thread_source import CodexThreadSource
 from llm_wiki.config import Settings
+from llm_wiki.hermes.client import HermesClient
+from llm_wiki.hermes.thread_source import HermesThreadSource
 from llm_wiki.logging_config import configure_logging
 from llm_wiki.web.api import router
 from llm_wiki.web.errors import install_error_handlers
@@ -34,14 +34,16 @@ def create_app(
 ) -> FastAPI:
     settings = settings or Settings()  # type: ignore[call-arg]
     if source is None:
-        client = CodexRpcClient(
-            settings.codex_socket,
-            connect_timeout=settings.codex_connect_timeout_seconds,
-            request_timeout=settings.codex_request_timeout_seconds,
-            max_pending=settings.codex_max_pending_requests,
-            max_message_bytes=settings.codex_max_message_bytes,
+        client = HermesClient(
+            settings.hermes_url,
+            settings.hermes_api_key,
+            timeout=settings.hermes_timeout_seconds,
         )
-        source = CodexThreadSource(client)
+        source = HermesThreadSource(
+            client,
+            project_cwd=settings.hermes_project_cwd,
+            run_state_path=settings.hermes_run_state_path,
+        )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:

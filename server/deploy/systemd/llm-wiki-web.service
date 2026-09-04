@@ -1,11 +1,13 @@
 [Unit]
 Description=LLM Wiki Web API
-After=llm-wiki-codex.service
+Wants=hermes-gateway.service
+After=hermes-gateway.service
 
 [Service]
 Type=simple
 WorkingDirectory=/home/joshua/projects/private/wiki-app/server
 EnvironmentFile=%h/.config/llm-wiki/app.env
+EnvironmentFile=%h/.config/llm-wiki/hermes-api.env
 ExecStart=/home/joshua/projects/private/wiki-app/server/.venv/bin/uvicorn llm_wiki.bootstrap:create_app --factory --host 127.0.0.1 --port 8787 --workers 1
 Restart=on-failure
 RestartSec=2

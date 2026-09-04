@@ -1,5 +1,7 @@
 import os
 from functools import cached_property
+from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,6 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 def _default_codex_socket() -> str:
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
     return f"{runtime_dir}/llm-wiki-codex.sock"
+
+
+def _default_run_state_path() -> Path:
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    return Path(runtime_dir) / "llm-wiki-hermes-runs.json"
 
 
 class Settings(BaseSettings):
@@ -21,6 +28,11 @@ class Settings(BaseSettings):
     codex_request_timeout_seconds: float = Field(default=30, gt=0)
     codex_max_pending_requests: int = Field(default=32, ge=1)
     codex_max_message_bytes: int = Field(default=67_108_864, ge=1024)
+    hermes_url: str = "http://127.0.0.1:8642"
+    hermes_api_key: str = ""
+    hermes_timeout_seconds: float = Field(default=30, gt=0)
+    hermes_project_cwd: str = "/home/joshua/projects/private/wiki"
+    hermes_run_state_path: Path = Field(default_factory=_default_run_state_path)
     log_level: str = "INFO"
 
     @field_validator("http_host")
@@ -36,6 +48,14 @@ class Settings(BaseSettings):
         if not any(part.strip() for part in value.split(",")):
             raise ValueError("At least one Tailscale user is required")
         return value
+
+    @field_validator("hermes_url")
+    @classmethod
+    def loopback_hermes_only(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme != "http" or parsed.hostname != "127.0.0.1":
+            raise ValueError("Hermes API must use loopback HTTP")
+        return value.rstrip("/")
 
     @cached_property
     def allowed_users(self) -> frozenset[str]:

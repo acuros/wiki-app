@@ -307,7 +307,7 @@ function submissionErrorMessage(error: Error) {
     return '스레드를 찾을 수 없습니다.';
   }
   if (error instanceof ApiError && error.status === 503) {
-    return 'Codex에 연결할 수 없습니다.';
+    return 'Hermes에 연결할 수 없습니다.';
   }
   return '메시지를 보내지 못했습니다. 다시 시도해주세요.';
 }
