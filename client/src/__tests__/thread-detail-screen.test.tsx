@@ -350,6 +350,41 @@ describe('ThreadDetailScreen', () => {
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
+  it('finishes dictation and sends the final transcript when send is pressed while recording', async () => {
+    mockGetThread.mockResolvedValue(detail);
+    let resolveTranscription: (text: string) => void = () => undefined;
+    mockTranscribeRecording.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTranscription = resolve;
+      }),
+    );
+    mockSendMessage.mockResolvedValue({
+      thread_id: 'thread-1',
+      turn_id: 'turn-2',
+      status: 'in_progress',
+    });
+
+    const screen = await render(<ThreadDetailScreen />, { wrapper: createWrapper() });
+    await screen.findByLabelText('메시지 입력');
+    await fireEvent.press(screen.getByRole('button', { name: '음성 입력 시작' }));
+
+    const sendButton = screen.getByRole('button', { name: '메시지 보내기' });
+    await waitFor(() =>
+      expect(sendButton.props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: false }),
+      ),
+    );
+    await fireEvent.press(sendButton);
+
+    await waitFor(() => expect(mockRecorder.stop).toHaveBeenCalledTimes(1));
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    await act(async () => resolveTranscription('최종 받아쓰기'));
+
+    await waitFor(() => expect(mockSendMessage).toHaveBeenCalledWith('thread-1', '최종 받아쓰기'));
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the draft and shows an inline error when transcription fails', async () => {
     mockGetThread.mockResolvedValue(detail);
     mockTranscribeRecording.mockRejectedValue(new TranscriptionError('busy'));

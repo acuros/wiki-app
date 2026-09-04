@@ -17,7 +17,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
-import { VoiceInputButton, VoiceInputState } from '@/components/voice-input-button';
+import {
+  VoiceInputButton,
+  VoiceInputButtonHandle,
+  VoiceInputState,
+} from '@/components/voice-input-button';
 import { ApiError } from '@/lib/api/client';
 import {
   createThread,
@@ -323,9 +327,14 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
   const didInitialScrollRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const submissionInFlightRef = useRef(false);
+  const draftRef = useRef('');
+  const voiceInputRef = useRef<VoiceInputButtonHandle>(null);
+  const voiceSubmissionQueuedRef = useRef(false);
+  const pendingVoiceSubmissionRef = useRef<string | null>(null);
   const [draft, setDraft] = useState('');
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceInputState>('idle');
+  const [isVoiceSubmissionQueued, setIsVoiceSubmissionQueued] = useState(false);
   const [settingsMenu, setSettingsMenu] = useState<SettingsMenu>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const query = useQuery({
@@ -340,6 +349,7 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
     mutationFn: (message: string) =>
       isNew ? createThread(message) : sendMessage(activeThreadId || '', message),
     onSuccess: (submission) => {
+      draftRef.current = '';
       setDraft('');
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       if (isNew) {
@@ -413,23 +423,47 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
   const submissionError = mutation.error ? submissionErrorMessage(mutation.error) : null;
   const emptyMessage = isNew ? '첫 메시지를 입력해주세요.' : '표시할 대화가 없습니다.';
   const title = isNew ? '새 Thread' : query.data?.title || '제목 없는 스레드';
-  const submit = () => {
-    if (
-      !draft.trim() ||
-      isActive ||
-      isSubmitting ||
-      isUsingVoice ||
-      submissionInFlightRef.current
-    ) {
+  const submitMessage = (message: string) => {
+    if (!message.trim() || isActive || isSubmitting || submissionInFlightRef.current) {
       return;
     }
     submissionInFlightRef.current = true;
-    mutation.mutate(draft);
+    mutation.mutate(message);
+  };
+  const submit = () => {
+    if (isUsingVoice) {
+      if (isActive || isSubmitting || isVoiceSubmissionQueued || submissionInFlightRef.current) {
+        return;
+      }
+      voiceSubmissionQueuedRef.current = true;
+      setIsVoiceSubmissionQueued(true);
+      voiceInputRef.current?.finish();
+      return;
+    }
+    submitMessage(draftRef.current);
   };
   const appendTranscript = (text: string) => {
-    setDraft((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${text}`);
+    const current = draftRef.current;
+    const nextDraft = `${current}${current && !/\s$/.test(current) ? ' ' : ''}${text}`;
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+    if (voiceSubmissionQueuedRef.current) {
+      pendingVoiceSubmissionRef.current = nextDraft;
+    }
+  };
+  const handleVoiceStateChange = (nextState: VoiceInputState) => {
+    setVoiceState(nextState);
+    if (nextState !== 'idle' || !voiceSubmissionQueuedRef.current) return;
+
+    const message = pendingVoiceSubmissionRef.current;
+    voiceSubmissionQueuedRef.current = false;
+    pendingVoiceSubmissionRef.current = null;
+    setIsVoiceSubmissionQueued(false);
+    if (message) submitMessage(message);
   };
   const composerDisabled = isActive || isSubmitting || isUsingVoice;
+  const sendDisabled =
+    isActive || isSubmitting || isVoiceSubmissionQueued || (!isUsingVoice && !draft.trim());
   const selectSettings = (settings: { model?: ThreadModel; effort?: ReasoningEffort }) => {
     if ('model' in settings && settings.model === undefined) {
       setSettingsMenu('root');
@@ -520,7 +554,10 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
               accessibilityLabel="메시지 입력"
               editable={!composerDisabled}
               multiline
-              onChangeText={setDraft}
+              onChangeText={(text) => {
+                draftRef.current = text;
+                setDraft(text);
+              }}
               placeholder="메시지를 입력하세요"
               placeholderTextColor={colors.textMuted}
               style={[styles.input, composerDisabled && styles.inputDisabled]}
@@ -529,21 +566,22 @@ export function ThreadConversation({ onClose, threadId }: ThreadConversationProp
             <VoiceInputButton
               disabled={isActive || isSubmitting}
               onError={setVoiceError}
-              onStateChange={setVoiceState}
+              onStateChange={handleVoiceStateChange}
               onTranscript={appendTranscript}
+              ref={voiceInputRef}
             />
             <Pressable
               accessibilityLabel="메시지 보내기"
               accessibilityRole="button"
-              disabled={!draft.trim() || composerDisabled}
+              disabled={sendDisabled}
               onPress={submit}
               style={({ pressed }) => [
                 styles.sendButton,
-                (!draft.trim() || composerDisabled) && styles.sendButtonDisabled,
+                sendDisabled && styles.sendButtonDisabled,
                 pressed && styles.pressed,
               ]}
             >
-              {isSubmitting ? (
+              {isSubmitting || isVoiceSubmissionQueued ? (
                 <ActivityIndicator color={colors.onPrimary} size="small" />
               ) : (
                 <Text style={styles.sendButtonText}>↑</Text>

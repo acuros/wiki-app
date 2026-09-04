@@ -4,7 +4,7 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
 } from 'expo-audio';
-import { useState } from 'react';
+import { forwardRef, type ForwardedRef, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { TranscriptionError, transcribeRecording } from '@/lib/api/transcriptions';
@@ -17,6 +17,10 @@ type VoiceInputButtonProps = {
   onError: (message: string | null) => void;
   onStateChange: (state: VoiceInputState) => void;
   onTranscript: (text: string) => void;
+};
+
+export type VoiceInputButtonHandle = {
+  finish: () => void;
 };
 
 function errorMessage(error: unknown) {
@@ -32,26 +36,32 @@ function errorMessage(error: unknown) {
   return '음성을 문자로 변환하지 못했습니다. 다시 시도해주세요.';
 }
 
-export function VoiceInputButton({
-  disabled,
-  onError,
-  onStateChange,
-  onTranscript,
-}: VoiceInputButtonProps) {
+function VoiceInputButtonComponent(
+  { disabled, onError, onStateChange, onTranscript }: VoiceInputButtonProps,
+  ref: ForwardedRef<VoiceInputButtonHandle>,
+) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [state, setState] = useState<VoiceInputState>('idle');
+  const stateRef = useRef<VoiceInputState>('idle');
+  const finishRequestedRef = useRef(false);
+  const stopInFlightRef = useRef(false);
 
   const updateState = (nextState: VoiceInputState) => {
+    stateRef.current = nextState;
     setState(nextState);
     onStateChange(nextState);
   };
 
   const finish = () => {
+    finishRequestedRef.current = false;
+    stopInFlightRef.current = false;
     updateState('idle');
     void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
   };
 
   const stopAndTranscribe = async () => {
+    if (stopInFlightRef.current) return;
+    stopInFlightRef.current = true;
     updateState('transcribing');
     try {
       await recorder.stop();
@@ -86,11 +96,23 @@ export function VoiceInputButton({
       await recorder.prepareToRecordAsync();
       recorder.record();
       updateState('recording');
+      if (finishRequestedRef.current) {
+        void stopAndTranscribe();
+      }
     } catch {
       onError('녹음을 시작하지 못했습니다. 다시 시도해주세요.');
       finish();
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    finish: () => {
+      finishRequestedRef.current = true;
+      if (stateRef.current === 'recording') {
+        void stopAndTranscribe();
+      }
+    },
+  }));
 
   const isWaiting = state === 'preparing' || state === 'transcribing';
   const accessibilityLabel =
@@ -123,6 +145,8 @@ export function VoiceInputButton({
     </Pressable>
   );
 }
+
+export const VoiceInputButton = forwardRef(VoiceInputButtonComponent);
 
 const styles = StyleSheet.create({
   button: {
